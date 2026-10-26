@@ -13,13 +13,15 @@ async function seeded() {
   return { db, key: r.offer.offerKey, asin: r.asin };
 }
 
-test('حالة واقعية: الشاحن = البائع، تجهيز 4–5 أيام، توصيل بعد 9–10 أيام → «غير معلوم» (توثيق السلوك الحالي)', () => {
-  // قيم مأخوذة من فحص المستخدم الفعلي لمنتج B0DCVPGB9N. المستخدم يؤكد أنه دولي، لكن الصفحة لا تذكر بلد الشحن،
-  // والعتبتان الحاليتان (تجهيز ≥ 5، توصيل ≥ 14) لا تلتقطانه. هذا اختبار توصيفي: يمنع تغيير السلوك دون قصد.
-  const c = classifier.classifyShipping({ shipperType: 'seller', shipperName: 'MahzuzStores', soldBy: 'MahzuzStores',
-    handling: { minDays: 4, maxDays: 5 }, deliveryWindow: { minDays: 9, maxDays: 10 } });
-  assert.equal(c.status, 'unknown');
-  assert.equal(c.evidence.length, 0);
+test('حالة واقعية: الشاحن = البائع، تجهيز 4–5 أيام، توصيل بعد 9–10 أيام → «مرجح» بقرينة فارق النقل (1.1.4)', () => {
+  // قيم مأخوذة من فحص المستخدم الفعلي لمنتج B0DCVPGB9N (يؤكد المستخدم أنه دولي؛ الصفحة لا تذكر بلد الشحن).
+  // العتبتان القديمتان (تجهيز ≥ 5، توصيل ≥ 14) لا تلتقطانه، أما فارق النقل (9 − 5 = 4 أيام) فيلتقطه.
+  const f = { shipperType: 'seller', shipperName: 'MahzuzStores', soldBy: 'MahzuzStores',
+    handling: { minDays: 4, maxDays: 5 }, deliveryWindow: { minDays: 9, maxDays: 10 } };
+  const c = classifier.classifyShipping(f);
+  assert.equal(c.status, 'likely');
+  assert.equal(c.evidence[0].signal, 'seller_ships_long_transit');
+  assert.equal(classifier.classifyShipping(f, { intlMinTransitDays: 5 }).status, 'unknown', 'يعود «غير معلوم» إن رُفعت عتبة الفارق');
 });
 
 test('التحقق اليدوي يتطلب دليلًا نصيًا للمؤكد/المرجح', async () => {

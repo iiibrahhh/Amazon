@@ -73,9 +73,9 @@ test('وجود «KSA» في اسم البائع/الشاحن ليس دليلًا
 
 test('عتبات القرينة المركّبة قابلة للضبط', () => {
   const p = parse('product_seller_long_handling.html', 'B0TEST0K2H');
-  assert.equal(cls(p, { intlMinHandlingDays: 12, intlMinDeliveryDays: 30 }).status, 'unknown');
-  assert.equal(cls(p, { intlMinHandlingDays: 12, intlMinDeliveryDays: 15 }).evidence[0].signal, 'seller_ships_long_delivery');
-  assert.equal(cls(p, { intlMinHandlingDays: 9, intlMinDeliveryDays: 99 }).evidence[0].signal, 'seller_ships_long_handling');
+  assert.equal(cls(p, { intlMinHandlingDays: 12, intlMinDeliveryDays: 30, intlMinTransitDays: 99 }).status, 'unknown');
+  assert.equal(cls(p, { intlMinHandlingDays: 12, intlMinDeliveryDays: 15, intlMinTransitDays: 99 }).evidence[0].signal, 'seller_ships_long_delivery');
+  assert.equal(cls(p, { intlMinHandlingDays: 9, intlMinDeliveryDays: 99, intlMinTransitDays: 99 }).evidence[0].signal, 'seller_ships_long_handling');
 });
 
 test('شاحن = بائع لكن المدد قصيرة ⇒ غير معلوم مع ملاحظة', () => {

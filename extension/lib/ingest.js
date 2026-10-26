@@ -36,7 +36,7 @@
   function classifierOpts(ctx, url) {
     const st = ctx.settings || {};
     return { source: ctx.source, url, now: ctx.now, importFeesAsConfirmed: !!st.importFeesAsConfirmed,
-      intlMinHandlingDays: st.intlMinHandlingDays, intlMinDeliveryDays: st.intlMinDeliveryDays };
+      intlMinHandlingDays: st.intlMinHandlingDays, intlMinDeliveryDays: st.intlMinDeliveryDays, intlMinTransitDays: st.intlMinTransitDays };
   }
 
   async function log(db, level, msg, ctx) {

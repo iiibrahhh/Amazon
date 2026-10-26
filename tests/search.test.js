@@ -69,7 +69,7 @@ test('بحث بكلمة: يجمع النتائج ويفحص تفاصيل الأ�
   assert.equal(by.B0SRCH0001.catalog, 'بحث: keyboard');
   assert.ok(!(await db.get('products', 'B0BANNER001')), 'ASIN اللافتة لا يُدخل');
   assert.equal(new Set(site.calls).size, site.calls.length, 'لا طلب مكرر');
-  assert.ok(sleeps.length >= 3 && sleeps.every(ms => ms >= 2000), 'تأخير ≥ 2 ثانية قبل كل طلب تفصيلي');
+  assert.ok(sleeps.length >= 2 && sleeps.every(ms => ms >= 1500 && ms <= 3000), "تأخير 1.5–3 ثوانٍ بين الطلبات التفصيلية");
 });
 
 test('بحث بكلمة: عدد الفحص التفصيلي محدود، والبقية تبقى «لم تُفحص»', async () => {

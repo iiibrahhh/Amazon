@@ -291,7 +291,7 @@
         const prods = state.products.filter(p => res.asins.includes(p.asin));
         const c = (k) => prods.filter(p => p.detailScanned !== false && p.shippingStatus === k).length;
         const tail = res.found
-          ? 'وُجد ' + res.found + ' منتجًا (' + res.newProducts + ' جديد)، فُحصت صفحات ' + res.scanned + ' منها: مؤكد ' + c('confirmed') + ' · مرجح ' + c('likely') + ' · غير معلوم ' + c('unknown') + ' · محلي ' + c('local') + (res.found > res.scanned ? ' — البقية لم تُفحص بعد (اضغط على صف ثم «فحص» أو ارفع عدد الفحص).' : '.')
+          ? 'وُجد ' + res.found + ' منتجًا (' + res.newProducts + ' جديد)، فُحصت صفحات ' + res.scanned + (res.skippedFresh ? ' (وتُخطّي ' + res.skippedFresh + ' فُحصت حديثًا)' : '') + ' منها: مؤكد ' + c('confirmed') + ' · مرجح ' + c('likely') + ' · غير معلوم ' + c('unknown') + ' · محلي ' + c('local') + (res.found > res.scanned + res.skippedFresh ? ' — البقية لم تُفحص بعد (اضغط على صف ثم «فحص» أو ارفع عدد الفحص).' : '.')
           : 'لم تُستخرج نتائج. قد تكون بنية صفحة البحث تغيّرت أو طلبت Amazon تحققًا — جرّب «تشخيص صفحة منتج» أو افتح البحث في Amazon.sa بنفسك مع «الالتقاط التلقائي».';
         setStatus((SEARCH_STOP_MSG[res.stoppedBecause] ? SEARCH_STOP_MSG[res.stoppedBecause] + ' — ' : '') + tail + (res.errors ? ' (أخطاء: ' + res.errors + (res.error ? ' — ' + res.error : '') + ')' : ''), !!SEARCH_STOP_MSG[res.stoppedBecause] && res.stoppedBecause !== 'user_stop' || !res.found);
       } else setStatus(res.error || 'مدخل غير صالح.', true);
@@ -468,7 +468,7 @@
       form.minDelay.value = s.minDelayMs / 1000; form.maxDelay.value = s.maxDelayMs / 1000; form.maxPages.value = s.maxPagesPerRun;
       form.depth.value = s.maxCategoryDepth; form.language.value = s.language || '';
       form.autoCapture.checked = !!s.autoCapture; form.competitors.checked = !!s.fetchCompetitorOffers; form.importAsConfirmed.checked = !!s.importFeesAsConfirmed;
-      form.intlHandling.value = s.intlMinHandlingDays; form.intlDelivery.value = s.intlMinDeliveryDays;
+      form.intlTransit.value = s.intlMinTransitDays; form.searchMin.value = s.searchMinDelayMs / 1000; form.searchMax.value = s.searchMaxDelayMs / 1000; form.skipFresh.value = s.skipFreshHours; form.intlHandling.value = s.intlMinHandlingDays; form.intlDelivery.value = s.intlMinDeliveryDays;
       form.seeds.value = (s.extraSeeds || []).join('\n'); $('settings-dialog').showModal();
     };
     $('settings-save').onclick = async () => {
@@ -478,6 +478,9 @@
         minDelayMs: minD * 1000, maxDelayMs: maxD * 1000, maxPagesPerRun: Math.max(1, parseInt(form.maxPages.value, 10) || 300),
         maxCategoryDepth: Math.min(4, Math.max(0, parseInt(form.depth.value, 10) || 0)), language: form.language.value,
         autoCapture: form.autoCapture.checked, fetchCompetitorOffers: form.competitors.checked, importFeesAsConfirmed: form.importAsConfirmed.checked, extraSeeds: seeds,
+        intlMinTransitDays: Math.max(1, parseInt(form.intlTransit.value, 10) || 4),
+        searchMinDelayMs: Math.max(500, (parseFloat(form.searchMin.value) || 1.5) * 1000), searchMaxDelayMs: Math.max(500, (parseFloat(form.searchMax.value) || 3) * 1000),
+        skipFreshHours: Math.max(0, parseInt(form.skipFresh.value, 10) || 0),
         intlMinHandlingDays: Math.max(1, parseInt(form.intlHandling.value, 10) || 5), intlMinDeliveryDays: Math.max(1, parseInt(form.intlDelivery.value, 10) || 14)
       }));
       setStatus('حُفظت الإعدادات.');

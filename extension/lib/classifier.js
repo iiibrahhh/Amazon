@@ -128,21 +128,27 @@
     // 2.5) قرينة مركّبة: الشاحن = البائع (وليس أمازون) + مهلة تجهيز طويلة / موعد توصيل بعيد
     const minHandling = Number(opts.intlMinHandlingDays) > 0 ? Number(opts.intlMinHandlingDays) : 5;
     const minDelivery = Number(opts.intlMinDeliveryDays) > 0 ? Number(opts.intlMinDeliveryDays) : 14;
+    const minTransit = Number(opts.intlMinTransitDays) > 0 ? Number(opts.intlMinTransitDays) : 4;
     const h = f.handling || (f.handlingMinDays !== undefined && f.handlingMinDays !== null ? { minDays: f.handlingMinDays, maxDays: f.handlingMaxDays } : null);
     const d = f.deliveryWindow || (f.deliveryMinDays !== undefined && f.deliveryMinDays !== null ? { minDays: f.deliveryMinDays, maxDays: f.deliveryMaxDays } : null);
     const hasLocalEvidence = evidence.some(e => e.strength === 'local');
     if (f.shipperType === 'seller' && !hasLocalEvidence) {
       const longHandling = !!(h && h.minDays >= minHandling);
       const longDelivery = !!(d && d.minDays >= minDelivery);
-      if (longHandling || longDelivery) {
+      // فارق النقل = أقرب توصيل − أطول تجهيز: الوقت المتبقي للنقل بعد خروج الشحنة من عند البائع.
+      // الشحن داخل المملكة عادة يومان إلى ثلاثة؛ فارق كبير يرجّح أن الشحنة تقطع مسافة أطول (قرينة لا دليل).
+      const transitMin = (h && d && h.maxDays !== null && h.maxDays !== undefined) ? d.minDays - h.maxDays : null;
+      const longTransit = transitMin !== null && transitMin >= minTransit;
+      if (longHandling || longDelivery || longTransit) {
         const parts = ['الشاحن: ' + (f.shipperName || f.shipsFrom || f.soldBy || '—') + ' (جهة البيع/الشحن نفسها وليست أمازون)'];
         if (h) parts.push('مهلة التجهيز: ' + rules.rangeText(h.minDays, h.maxDays) + ' يوم');
         if (d) parts.push('التوصيل بعد ' + rules.rangeText(d.minDays, d.maxDays) + ' يومًا من الفحص' + (f.deliveryDate ? ' (' + f.deliveryDate + ')' : ''));
-        const signal = longHandling && longDelivery ? 'seller_ships_long_handling_and_delivery' : longHandling ? 'seller_ships_long_handling' : 'seller_ships_long_delivery';
+        if (longTransit) parts.push('فارق النقل المقدّر: ' + transitMin + ' أيام فأكثر (أقرب توصيل − أطول تجهيز)');
+        const signal = longHandling && longDelivery ? 'seller_ships_long_handling_and_delivery' : longHandling ? 'seller_ships_long_handling' : longDelivery ? 'seller_ships_long_delivery' : 'seller_ships_long_transit';
         add(signal, 'likely', 'combined', parts.join(' · '));
         notes.push('تصنيف «مرجح» مبني على قرائن مجتمعة (شاحن = بائع + مدد طويلة)، وليس على نص يذكر بلد الشحن؛ Amazon.sa لا تعرض بلد الشحن لهذه العروض.');
       } else if (h || d) {
-        notes.push('الشاحن هو البائع لكن مدد الشحن قصيرة (' + [h ? 'تجهيز ' + rules.rangeText(h.minDays, h.maxDays) + ' يوم' : null, d ? 'توصيل بعد ' + rules.rangeText(d.minDays, d.maxDays) + ' يومًا' : null].filter(Boolean).join('، ') + ') — لا قرينة كافية على شحن دولي.');
+        notes.push('الشاحن هو البائع لكن مدد الشحن قصيرة (' + [transitMin !== null ? 'فارق النقل ' + transitMin + ' أيام' : null, h ? 'تجهيز ' + rules.rangeText(h.minDays, h.maxDays) + ' يوم' : null, d ? 'توصيل بعد ' + rules.rangeText(d.minDays, d.maxDays) + ' يومًا' : null].filter(Boolean).join('، ') + ') — لا قرينة كافية على شحن دولي.');
       }
     }
 

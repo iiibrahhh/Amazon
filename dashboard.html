@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>مستكشف شحن Amazon.sa الدولي</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1>مستكشف الشحن الدولي</h1>
+      <p>المنتجات على Amazon.sa التي يوجد دليل أو قرائن على شحنها من خارج السعودية</p>
+    </div>
+    <div class="run-controls" role="group" aria-label="التحكم في الجمع">
+      <button id="btn-start" class="primary">بدء الجمع</button>
+      <button id="btn-stop" disabled>إيقاف الجمع</button>
+      <button id="btn-resume">استكمال الجمع</button>
+      <button id="btn-refresh">تحديث بيانات المنتجات</button>
+      <button id="btn-scan-current">فحص صفحة المنتج الحالية</button>
+      <button id="btn-diagnose" class="ghost" title="يجلب صفحة منتج واحدة ويعرض ما استُخرج منها ويحفظ نسخة HTML منقّحة للتشخيص">تشخيص صفحة منتج</button>
+      <button id="btn-settings" class="ghost">الإعدادات</button>
+    </div>
+  </header>
+
+  <p id="runstatus" class="runstatus" role="status">الحالة: متوقف.</p>
+
+  <section class="searchbox" aria-label="البحث عن منتج في Amazon.sa">
+    <input id="q-amazon" type="search" placeholder="ابحث في Amazon.sa: اسم منتج، أو الصق رابط منتج، أو ASIN" autocomplete="off">
+    <label>صفحات النتائج
+      <select id="q-pages"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+    </label>
+    <label>فحص تفاصيل أول
+      <select id="q-deep"><option value="0">0 (بلا فحص)</option><option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="40">40</option></select>
+      نتيجة
+    </label>
+    <button id="btn-search" class="primary">بحث وتحليل</button>
+  </section>
+  <p id="focus-banner" class="focus-banner" hidden><span id="focus-text"></span> <button id="btn-unfocus">عرض كل المنتجات</button></p>
+
+  <section class="stats" id="stats" aria-label="ملخص"></section>
+
+  <details class="scope" id="scope-panel">
+    <summary id="scope-summary">نطاق الجمع: كل الكتالوجات</summary>
+    <p class="muted">اترك الكل غير محدد ليجمع الزاحف من كل الكتالوجات، أو اختر كتالوجًا أو أكثر ليقتصر الاكتشاف عليها. تظهر القائمة بعد «اكتشاف الكتالوجات».</p>
+    <div class="scope-actions">
+      <button id="btn-discover">اكتشاف الكتالوجات</button>
+      <button id="btn-scope-all">كل الكتالوجات</button>
+    </div>
+    <div id="scope-list" class="scope-list"></div>
+  </details>
+
+  <section class="toolbar">
+    <input id="search" type="search" placeholder="ابحث في المنتجات المجموعة (اسم، ASIN، علامة، بائع)">
+    <select id="filter-catalog" aria-label="تصفية الكتالوج"><option value="all">كل الكتالوجات</option></select>
+    <select id="filter-status" aria-label="تصفية حالة الشحن">
+      <option value="all">كل الحالات</option>
+      <option value="confirmed">مؤكد</option>
+      <option value="likely">مرجح</option>
+      <option value="unknown">غير معلوم</option>
+      <option value="local">محلي / غير دولي</option>
+      <option value="unscanned">لم تُفحص صفحة المنتج بعد</option>
+    </select>
+    <span class="spacer"></span>
+    <button id="btn-csv">تصدير CSV</button>
+    <button id="btn-xlsx">تصدير Excel</button>
+    <button id="btn-import">استيراد CSV</button>
+    <input id="file-import" type="file" accept=".csv,text/csv" hidden>
+    <button id="btn-copy">نسخ الرابط</button>
+    <button id="btn-open">فتح في Amazon.sa</button>
+    <button id="btn-delete" class="danger">حذف المحدد</button>
+  </section>
+
+  <main class="layout">
+    <div class="tablewrap">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th class="chk"><input type="checkbox" id="chk-all" aria-label="تحديد الكل"></th>
+            <th>الصورة</th>
+            <th data-sort="title" class="sortable">اسم المنتج</th>
+            <th data-sort="asin" class="sortable">ASIN</th>
+            <th data-sort="catalog" class="sortable">الكتالوج</th>
+            <th data-sort="price" class="sortable num">السعر</th>
+            <th>اسم البائع<br><small>يباع بواسطة</small></th>
+            <th>اسم الشاحن<br><small>يشحن بواسطة</small></th>
+            <th>نوع الشاحن</th>
+            <th data-sort="handling" class="sortable num">مدة التجهيز<br><small>أيام</small></th>
+            <th data-sort="delivery" class="sortable num">التوصيل بعد<br><small>أيام</small></th>
+            <th>بلد الشحن</th>
+            <th data-sort="status" class="sortable">حالة الشحن الدولي</th>
+            <th class="num">سعر الشحن</th>
+            <th class="num">رسوم الاستيراد</th>
+            <th>موعد التوصيل</th>
+            <th data-sort="rating" class="sortable num">التقييم</th>
+            <th>مصدر البيانات</th>
+            <th data-sort="checked" class="sortable">تاريخ الفحص</th>
+            <th>إجراءات</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <p id="empty" class="empty" hidden></p>
+      <div class="pager" id="pager"></div>
+    </div>
+    <aside id="detail" class="detail" hidden aria-live="polite"></aside>
+  </main>
+
+  <details class="logbox">
+    <summary>سجل الأحداث والأخطاء</summary>
+    <pre id="log">—</pre>
+  </details>
+
+  <dialog id="settings-dialog">
+    <form method="dialog" id="settings-form">
+      <h2>الإعدادات</h2>
+      <label>أقل تأخير بين الطلبات (ثوانٍ)<input type="number" name="minDelay" min="2" step="0.5"></label>
+      <label>أعلى تأخير بين الطلبات (ثوانٍ)<input type="number" name="maxDelay" min="3" step="0.5"></label>
+      <label>الحد الأقصى للصفحات في كل دورة<input type="number" name="maxPages" min="1"></label>
+      <label>عمق تتبع الفئات الفرعية<input type="number" name="depth" min="0" max="4"></label>
+      <label>لغة صفحات Amazon عند الجمع
+        <select name="language"><option value="">دون تغيير (حسب حسابك)</option><option value="ar_AE">العربية</option><option value="en_AE">English</option></select>
+      </label>
+      <label class="inline"><input type="checkbox" name="autoCapture"> التقاط الصفحات التي أتصفحها تلقائيًا</label>
+      <label class="inline"><input type="checkbox" name="competitors"> (تجريبي) جلب قائمة العروض المنافسة لكل منتج — طلب إضافي لكل منتج</label>
+      <label class="inline"><input type="checkbox" name="importAsConfirmed"> اعتبار «رسوم الاستيراد» دليلًا مؤكدًا (الافتراضي: مرجح فقط)</label>
+      <label>عتبة مدة التجهيز لاعتبار الشحن دوليًا «مرجحًا» (أيام، مع شاحن = بائع)<input type="number" name="intlHandling" min="1" max="60"></label>
+      <label>عتبة التوصيل البعيد لاعتبار الشحن دوليًا «مرجحًا» (أيام من الفحص، مع شاحن = بائع)<input type="number" name="intlDelivery" min="1" max="120"></label>
+      <label>روابط بدء إضافية (قوائم أو فئات على amazon.sa، رابط في كل سطر)<textarea name="seeds" rows="3"></textarea></label>
+      <menu>
+        <button value="save" class="primary" id="settings-save">حفظ</button>
+        <button value="cancel">إلغاء</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script src="lib/rules.js"></script>
+  <script src="lib/classifier.js"></script>
+  <script src="lib/parser.js"></script>
+  <script src="lib/db.js"></script>
+  <script src="lib/ingest.js"></script>
+  <script src="lib/export.js"></script>
+  <script src="lib/crawler.js"></script>
+  <script src="lib/search.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

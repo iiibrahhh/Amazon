@@ -1,0 +1,14 @@
+{
+  "name": "amazon-sa-intl-finder",
+  "version": "1.1.2",
+  "private": true,
+  "description": "مستكشف شحن Amazon.sa الدولي — إضافة Chrome (MV3). التبعيات هنا لأغراض الاختبار فقط؛ الإضافة نفسها لا تحتاج npm.",
+  "scripts": {
+    "test": "node --test --test-reporter=spec tests/*.test.js",
+    "pack": "bash scripts/pack.sh"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "^25.0.0"
+  }
+}

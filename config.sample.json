@@ -1,0 +1,19 @@
+{
+  "_ملاحظة": "هذه القيم الافتراضية للإعدادات. تُضبط فعليًا من زر «الإعدادات» في اللوحة (تُحفظ في chrome.storage.local). الملف للتوثيق فقط ولا تقرؤه الإضافة.",
+  "baseUrl": "https://www.amazon.sa",
+  "language": "",
+  "minDelayMs": 4000,
+  "maxDelayMs": 9000,
+  "maxPagesPerRun": 300,
+  "maxCategoryDepth": 2,
+  "maxAttempts": 2,
+  "stopAfterBlocks": 3,
+  "fetchCompetitorOffers": false,
+  "autoCapture": true,
+  "importFeesAsConfirmed": false,
+  "intlMinHandlingDays": 5,
+  "intlMinDeliveryDays": 14,
+  "searchPages": 1,
+  "searchDeepScan": 10,
+  "extraSeeds": []
+}

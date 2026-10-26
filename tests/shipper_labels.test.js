@@ -32,3 +32,27 @@ test('التسميات الإنجليزية والعربية القديمة ما
   const ar = parse('<div id="fulfillerInfoFeature_feature_div"><span>الشاحن</span> <span>Amazon.sa</span></div><div id="merchantInfoFeature_feature_div"><span>البائع</span> ' + SELLER('Anker') + '</div>');
   assert.equal(ar.offer.shipperType, 'amazon'); assert.equal(ar.offer.sellerName, 'Anker');
 });
+
+/* ---- نص حقيقي (ألصقه المستخدم) يتكرر بنمط «تسمية قيمة قيمة تسمية قيمة» ---- */
+const DUP_FULFILLER = '<div id="fulfillerInfoFeature_feature_div"><span>الشحن من قبل</span> <span>Amazon</span> <span class="a-offscreen">Amazon</span> <span>الشحن من قبل</span> <span>Amazon</span></div>';
+const DUP_MERCHANT = '<div id="merchantInfoFeature_feature_div"><span>يباع من</span> <span>The last one us UK</span> <span>The last one us UK</span> <span>يباع من</span> <span>The last one us UK</span></div>';
+
+test('نص مكرر حقيقي (دوراسيل / The last one us UK): الشاحن أمازون والبائع باسم نظيف، والحكم محلي', () => {
+  const p = parse(DUP_FULFILLER + DUP_MERCHANT);
+  assert.equal(p.offer.shipperName, 'Amazon'); assert.equal(p.offer.shipperType, 'amazon');
+  assert.equal(p.offer.sellerName, 'The last one us UK');
+  assert.equal(p.shippingFields.shipperIsSeller, false);
+  assert.equal(classifyShipping(p.shippingFields).status, 'local');
+});
+
+test('نص مكرر مع رابط البائع: يُعتمد نص الرابط النظيف، ويبقى اسم يحتوي كلمة Seller سليمًا', () => {
+  const p = parse(DUP_FULFILLER + DUP_MERCHANT.replace('</div>', ' <a id="sellerProfileTriggerId" href="/sp?seller=A36X6M5HFFHXNP">The last one us UK</a></div>'));
+  assert.equal(p.offer.sellerName, 'The last one us UK'); assert.equal(p.offer.sellerId, 'A36X6M5HFFHXNP');
+  const q = parse('<div id="fulfillerInfoFeature_feature_div"><span>الشحن من قبل</span> <span>Amazon</span></div><div id="merchantInfoFeature_feature_div"><span>يباع من</span> <span>Best Seller Store</span></div>');
+  assert.equal(q.offer.sellerName, 'Best Seller Store', 'لا نقطع عند كلمة Seller داخل اسم البائع');
+});
+
+test('الماركة: «قم بزيارة متجر Duracell» ← Duracell', () => {
+  const p = parse('<a id="bylineInfo" href="#">قم بزيارة متجر Duracell</a>');
+  assert.equal(p.brand, 'Duracell');
+});

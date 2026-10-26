@@ -223,6 +223,15 @@
     }
     return t;
   }
+  /** النص الحقيقي يتكرر بنمط «التسمية القيمة القيمة التسمية القيمة»: نقطع عند تكرار التسمية نفسها ثم نزيل تكرار القيمة. */
+  function cleanValue(raw, label) {
+    let t = normalizeText(raw);
+    if (label) {
+      const i = t.toLowerCase().indexOf(normalizeText(label).toLowerCase());
+      if (i > 0) t = t.slice(0, i).trim();
+    }
+    return collapseDup(t);
+  }
   const isAmazonLike = (n) => rules.shipperTypeOf(n, '') === 'amazon';
 
   /* ---------- صفحة المنتج ---------- */
@@ -241,7 +250,7 @@
     });
     featureRows.forEach(r => { if (!(r.label in attrs)) attrs[r.label] = r.value; });
 
-    const pick = (labels) => { for (const l of labels) if (attrs[l]) return collapseDup(attrs[l]); return null; };
+    const pick = (labels) => { for (const l of labels) if (attrs[l]) { const v = attrs[l], fv = foldForMatch(v); const i = fv.length === v.length ? fv.indexOf(l) : -1; return cleanValue(i > 0 ? v.slice(0, i) : v); } return null; };
     let shipsFrom = pick(LABELS.shipsFrom);
     let soldBy = pick(LABELS.soldBy);
     let shipsFromIsName = !!shipsFrom && /^(?:shipper|الشاحن|الشحن من قبل|يشحن من قبل|يتم الشحن من قبل|يشحن بواسطه|الشحن بواسطه|شحن بواسطه|shipped by|dispatched by|ships by)$/.test(Object.keys(attrs).find(k => LABELS.shipsFrom.includes(k) && attrs[k]) || '');
@@ -268,19 +277,20 @@
       if (comb) { combinedSeller = normalizeText(comb[1] || comb[2]); shipsFrom = combinedSeller; shipsFromIsName = true; if (!soldBy) soldBy = combinedSeller; }
     }
     if (!shipsFrom && fulfillerText) {   // «الشاحن X | البائع Y» كنص عادي (بلا سمات tabular)
-      const sm = fulfillerText.match(/(?:^|\|\s*)(?:الشاحن|shipper|(?:الشحن|يشحن|يتم الشحن) من قبل)\s*[:：]?\s*([^|]+?)(?=\s*\||$)/i);
-      if (sm && !/^[\/]/.test(sm[1].trim())) { shipsFrom = collapseDup(sm[1]); shipsFromIsName = true; }
+      const sm = fulfillerText.match(/(?:^|\|\s*)(الشاحن|shipper|(?:الشحن|يشحن|يتم الشحن) من قبل)\s*[:：]?\s*([^|]+?)(?=\s*\||$)/i);
+      if (sm && !/^[\/]/.test(sm[2].trim())) { shipsFrom = cleanValue(sm[2], sm[1]); shipsFromIsName = true; }
     }
     if (!soldBy && fulfillerText) {
-      const bm = fulfillerText.match(/(?:^|\|\s*)(?:البائع|seller|sold by|يباع من(?: قبل)?)\s*[:：]?\s*([^|]+?)(?=\s*\||$)/i);
-      if (bm && !/^[\/]/.test(bm[1].trim())) soldBy = collapseDup(bm[1]);
+      const bm = fulfillerText.match(/(?:^|\|\s*)(البائع|seller|sold by|يباع من(?: قبل)?)\s*[:：]?\s*([^|]+?)(?=\s*\||$)/i);
+      if (bm && !/^[\/]/.test(bm[2].trim())) soldBy = cleanValue(bm[2], bm[1]);
     }
     if (!shipsFrom && fulfillerText) {
       const m = fulfillerText.match(/ships? from\s+(.{1,60}?)(?=\s+(?:and\s+)?(?:sold|\|)|$)|يشحن من\s+(.{1,60}?)(?=\s+(?:و?يباع|\|)|$)/i);
       if (m) shipsFrom = normalizeText(m[1] || m[2]);
     }
     const sellerEl = q(doc, SEL.sellerLink, root);
-    if (!soldBy && sellerEl) soldBy = T(sellerEl) || null;
+    // نص رابط البائع هو الأنظف: يحل محل نص ملتقط من كتلة مكررة إن كان يحتويه
+    if (sellerEl && T(sellerEl) && (!soldBy || foldForMatch(soldBy).includes(foldForMatch(T(sellerEl))))) soldBy = T(sellerEl);
     let sellerId = null;
     if (sellerEl) {
       const m = (sellerEl.getAttribute('href') || '').match(/[?&](?:seller|merchant|smid)=([A-Z0-9]{8,16})/i);
@@ -373,7 +383,7 @@
     let brand = null;
     const by = T(q(doc, SEL.byline));
     if (by) {
-      brand = by.replace(/^(?:visit the|brand:|زيارة متجر|العلامه التجاريه:|العلامة التجارية:)\s*/i, '')
+      brand = by.replace(/^(?:visit the|brand:|قم بزيارة متجر|زيارة متجر|العلامه التجاريه:|العلامة التجارية:)\s*/i, '')
         .replace(/\s*store$/i, '').trim() || null;
     }
     const kv = detailMap(doc);

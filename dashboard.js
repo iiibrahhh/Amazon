@@ -37,6 +37,8 @@
     if (state.focus) rows = rows.filter(r => state.focus.has(r._asin));
     if (st === 'unscanned') rows = rows.filter(r => r.detailScanned === false && !r._offerKey);
     else if (st !== 'all') rows = rows.filter(r => r.shippingStatus === st && (r._offerKey || r.detailScanned !== false));
+    const shipCond = { type: $('filter-shipper-type').value, name: $('filter-shipper-name').value };
+    if (shipCond.type !== 'all' || shipCond.name.trim()) rows = rows.filter(r => exporter.matchShipper(r, shipCond));
     const cat = $('filter-catalog').value;
     if (cat !== 'all') rows = rows.filter(r => (r.catalog || '') === cat);
     if (q) rows = rows.filter(r => rules.foldForMatch([r.title, r.asin, r.brand, r.sellerName].join(' ')).includes(q));
@@ -429,6 +431,8 @@
     };
     $('search').oninput = () => { state.page = 1; applyView(); };
     $('filter-status').onchange = () => { state.page = 1; applyView(); };
+    $('filter-shipper-type').onchange = () => { state.page = 1; applyView(); };
+    $('filter-shipper-name').oninput = () => { state.page = 1; applyView(); };
     $('chk-all').onchange = (e) => {
       const slice = state.view.slice((state.page - 1) * state.perPage, state.page * state.perPage);
       slice.forEach(r => e.target.checked ? state.selected.add(rowKey(r)) : state.selected.delete(rowKey(r))); renderTable();

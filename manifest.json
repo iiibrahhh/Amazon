@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "مستكشف شحن Amazon.sa الدولي",
   "short_name": "Amazon.sa Intl Finder",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "اكتشاف المنتجات المعروضة على Amazon.sa والتي يوجد دليل على شحنها من خارج السعودية، وحفظها محليًا وتصديرها إلى CSV وExcel.",
   "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
   "action": { "default_title": "فتح لوحة مستكشف الشحن الدولي" },

@@ -127,6 +127,30 @@
     return rows;
   }
 
+  /** شروط الشاحن: نوعه (all|amazon|seller|amazon_global|none) واسمه (كلمات مفصولة بفاصلة = أيٌّ منها؛ «-كلمة» = استبعاد). */
+  function parseNameTerms(text) {
+    const inc = [], exc = [];
+    String(text || '').split(/[,،;\n]+/).map(t => rules.foldForMatch(t)).filter(Boolean).forEach(t => {
+      if (t.startsWith('-') && t.length > 1) exc.push(t.slice(1).trim()); else inc.push(t);
+    });
+    return { inc, exc };
+  }
+  function matchShipper(row, cond) {
+    cond = cond || {};
+    const type = cond.type || 'all';
+    if (type !== 'all') {
+      const t = row.shipperType || null;
+      if (type === 'none' ? t !== null : t !== type) return false;
+    }
+    const { inc, exc } = parseNameTerms(cond.name);
+    if (inc.length || exc.length) {
+      const name = rules.foldForMatch(row.shipperName || '');
+      if (inc.length && !inc.some(t => name.includes(t))) return false;
+      if (exc.some(t => name.includes(t))) return false;
+    }
+    return true;
+  }
+
   /** خلاصة الشحن بالعربية لصف واحد: ما الشاحن؟ كم يومًا؟ هل الشحن دولي؟ (للوحة التفاصيل). */
   function shippingVerdict(row) {
     const st = row.shippingStatus || 'unknown';
@@ -347,5 +371,5 @@
     return zipStore(files);
   }
 
-  return { shippingVerdict, COLUMNS, SHIPPER_TYPE_AR, STATUS_AR, STATUS_FROM_AR, buildRows, toCSV, parseCSV, recordsFromCsv, importRecords, buildXlsx, csvCell };
+  return { matchShipper, parseNameTerms, shippingVerdict, COLUMNS, SHIPPER_TYPE_AR, STATUS_AR, STATUS_FROM_AR, buildRows, toCSV, parseCSV, recordsFromCsv, importRecords, buildXlsx, csvCell };
 });

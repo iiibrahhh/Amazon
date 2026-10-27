@@ -100,3 +100,5 @@ th small { font-weight: 400; }
 .verdict.local { background: var(--c-local-bg); border-color: var(--c-local); }
 .verdict .h { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
 .verdict .r { display: flex; gap: 8px; } .verdict .r b { min-width: 82px; font-weight: 600; }
+
+.toolbar input.shipper-name { flex: 1 1 260px; max-width: 360px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }

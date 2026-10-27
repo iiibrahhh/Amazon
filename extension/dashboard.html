@@ -61,6 +61,14 @@
       <option value="local">محلي / غير دولي</option>
       <option value="unscanned">لم تُفحص صفحة المنتج بعد</option>
     </select>
+    <select id="filter-shipper-type" aria-label="تصفية نوع الشاحن">
+      <option value="all">كل أنواع الشاحن</option>
+      <option value="amazon">الشاحن: أمازون</option>
+      <option value="seller">الشاحن: البائع (ليس أمازون)</option>
+      <option value="amazon_global">الشاحن: أمازون العالمي</option>
+      <option value="none">الشاحن غير معروف</option>
+    </select>
+    <input id="filter-shipper-name" type="search" class="shipper-name" placeholder="اسم الشاحن: كلمة أو أكثر مفصولة بفاصلة، و«-كلمة» للاستبعاد" aria-label="تصفية اسم الشاحن">
     <span class="spacer"></span>
     <button id="btn-csv">تصدير CSV</button>
     <button id="btn-xlsx">تصدير Excel</button>

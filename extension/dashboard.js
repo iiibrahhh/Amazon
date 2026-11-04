@@ -1,6 +1,6 @@
 /* لوحة التحكم — تعمل كصفحة إضافة، وتشغّل الزاحف مباشرة (يجب إبقاء التبويب مفتوحًا أثناء الجمع). */
 (function () {
-  const { rules, parser, db: dbLib, ingest, exporter, crawler, search } = self.ASF;
+  const { rules, parser, db: dbLib, ingest, exporter, crawler, search, opportunity, calibration } = self.ASF;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtDate = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' }); };
@@ -45,7 +45,7 @@
     const { key, dir } = state.sort; const m = dir === 'asc' ? 1 : -1;
     const val = (r) => key === 'status' ? (rules.STATUS[r.shippingStatus] || rules.STATUS.unknown).rank
       : key === 'checked' ? (r.lastCheckedAt || '') : key === 'price' ? r.price : key === 'rating' ? r.rating
-      : key === 'handling' ? r.handlingMinDays : key === 'delivery' ? r.deliveryMinDays
+      : key === 'opp' ? r.opportunityScore : key === 'handling' ? r.handlingMinDays : key === 'delivery' ? r.deliveryMinDays
       : key === 'catalog' ? rules.foldForMatch(r.catalog || '')
       : key === 'title' ? rules.foldForMatch(r.title || '') : (r.asin || '');
     rows = rows.slice().sort((a, b) => {
@@ -119,6 +119,7 @@
         '<td class="num">' + (r.deliveryDaysText ? '<span class="ltr">' + esc(r.deliveryDaysText) + '</span>' : '—') + '</td>' +
         '<td>' + esc(r.shippingOrigin || '—') + '</td>' +
         '<td>' + badge(r.shippingStatus, unscanned, !!(r.statusSource && /^يدوي/.test(r.statusSource))) + '</td>' +
+        '<td class="num opp">' + (r.opportunityScore !== null && r.opportunityScore !== undefined ? esc(r.opportunityScore) : '<span class="muted">—</span>') + '</td>' +
         '<td class="num">' + (r.shippingCost === 'مجاني' ? 'مجاني' : (r.shippingCost !== null && r.shippingCost !== undefined ? fmtNum(r.shippingCost) : '<span class="muted">—</span>')) + '</td>' +
         '<td class="num">' + (r.importFees !== null && r.importFees !== undefined ? fmtNum(r.importFees) : '<span class="muted">—</span>') + '</td>' +
         '<td>' + esc(r.deliveryDate || '—') + (r.deliveryLocation ? '<br><span class="muted">إلى: ' + esc(r.deliveryLocation) + '</span>' : '') + '</td>' +
@@ -148,6 +149,36 @@
     return '<div class="verdict ' + esc(v.status) + '"><div class="h">' + esc(v.headline) + '</div>' +
       v.lines.map(([a, b]) => '<div class="r"><b>' + esc(a) + '</b><span>' + ltrRanges(esc(b)) + '</span></div>').join('') + '</div>';
   }
+  function opportunityHtml(r) {
+    const o = r.opportunity; if (!o) return '';
+    return '<h3>درجة الفرصة: <span class="opp">' + esc(o.score) + '</span> / 100 <small class="muted">(مؤشر إرشادي، لا توقع مبيعات)</small></h3><div class="opp-bar"><i style="width:' + Math.max(0, Math.min(100, o.score)) + '%"></i></div>' +
+      o.parts.map(p => '<div class="r"><b style="min-width:110px">' + esc(p.label) + '</b><span>' + esc(p.pts) + '/' + esc(p.max) + ' — ' + esc(p.why) + '</span></div>').join('') +
+      (o.missing.length ? '<p class="muted">ناقص: ' + esc(o.missing.join('، ')) + '</p>' : '');
+  }
+  const pct = (v) => v === null || v === undefined ? '—' : Math.round(v * 100) + '%';
+  async function showCalibration() {
+    const evidence = await state.db.all('evidence');
+    const res = calibration.evaluate(state.offers, evidence, state.settings);
+    state.calib = res;
+    const a = res.auto;
+    let html = '<h2>معايرة التصنيف الآلي</h2><p class="muted">المرجع = تصنيفاتك اليدوية (مؤكد/مرجح ⇒ دولي، محلي ⇒ غير دولي). صنّف أمثلة من «التحقق اليدوي» في لوحة التفاصيل.</p>' +
+      '<p>عدد الأمثلة المصنّفة: <b>' + res.labeled + '</b> (دولي ' + a.intl + '، غير دولي ' + a.local + ')</p>';
+    if (res.labeled) {
+      html += '<table><tr><th></th><th>آلي: دولي</th><th>آلي: محلي</th><th>آلي: غير معلوم</th></tr>' +
+        '<tr><th>فعليًا دولي</th><td>' + a.tp + '</td><td>' + a.fn_local + '</td><td>' + a.fn_unknown + '</td></tr>' +
+        '<tr><th>فعليًا غير دولي</th><td>' + a.fp + '</td><td>' + a.tn + '</td><td>' + a.tn_unknown + '</td></tr></table>' +
+        '<p>الدقة (من قلنا عنه دولي وكان دوليًا): <b>' + pct(a.precision) + '</b> · الاسترجاع (من الدولي الفعلي التقطناه): <b>' + pct(a.recall) + '</b> · التغطية (ما أُعطي حكمًا): <b>' + pct(a.coverage) + '</b></p>';
+    }
+    res.warnings.forEach(w => { html += '<p class="warn-line">' + esc(w) + '</p>'; });
+    if (res.recommendation) {
+      const r = res.recommendation, b = r.best.th;
+      html += '<h3>العتبات</h3><p>الحالية: تجهيز ≥ ' + res.current.h + '، توصيل ≥ ' + res.current.d + '، فارق النقل ≥ ' + res.current.t + ' (دقة على أمثلة «شاحن = بائع»: ' + pct(r.currentAccuracy) + ').</p>' +
+        '<p>الأفضل على عينتك (' + r.basedOn + ' مثالًا): تجهيز ≥ ' + b.h + '، توصيل ≥ ' + b.d + '، فارق نقل ≥ ' + b.t + ' (دقة ' + pct(r.best.acc) + ')' + (r.keepCurrent ? ' — لا تحسّن يُذكر، أبقِ الحالية.' : ' — غيّرها من «الإعدادات» إن اقتنعت.') + '</p>';
+    }
+    if (res.mismatches.length) html += '<h3>أمثلة اختلف فيها الآلي عنك (' + res.mismatches.length + ')</h3><table><tr><th>ASIN</th><th>البائع</th><th>أنت</th><th>الآلي</th><th>تجهيز</th><th>توصيل</th></tr>' +
+      res.mismatches.slice(0, 30).map(m => '<tr><td>' + esc(m.asin) + '</td><td>' + esc(m.sellerName || '—') + '</td><td>' + esc(m.truth === 'intl' ? 'دولي' : 'غير دولي') + '</td><td>' + esc(STATUS_AR[m.auto] || m.auto) + '</td><td>' + esc(m.handling.filter(x => x !== null && x !== undefined).join('–') || '—') + '</td><td>' + esc(m.delivery.filter(x => x !== null && x !== undefined).join('–') || '—') + '</td></tr>').join('') + '</table>';
+    $('calib-body').innerHTML = html; $('calib-dialog').showModal();
+  }
   function userVerdictForm(o) {
     const opt = (v, t) => '<option value="' + v + '"' + (o.userStatus === v ? ' selected' : '') + '>' + t + '</option>';
     return '<h3>تحقق يدوي (من عندك)</h3><div class="uv">' +
@@ -175,7 +206,7 @@
       '<h2>' + esc(r.title || r.asin) + '</h2>' +
       '<p>' + badge(r.shippingStatus, unscanned, !!(r.statusSource && /^يدوي/.test(r.statusSource))) + (r.shippingOrigin ? ' <span class="muted">— بلد الشحن: ' + esc(r.shippingOrigin) + '</span>' : '') + '</p>' +
       ((r.statusSource && /^يدوي/.test(r.statusSource)) ? '<p class="muted">هذه الحالة <b>يدوية من المستخدم</b> ولا تعني أن Amazon.sa أثبتتها. التصنيف الآلي لهذا العرض: <b>' + esc(STATUS_AR[r.autoStatus] || STATUS_AR.unknown) + '</b>.</p>' : '') +
-      verdictHtml(r, unscanned) +
+      verdictHtml(r, unscanned) + opportunityHtml(r) +
       (offer ? userVerdictForm(offer) : '') +
       '<h3>دليل التصنيف</h3>' +
       (evidence.length ? evidence.map(e => '<div class="ev"><div class="meta">' + esc({ confirmed: 'مؤكد', likely: 'مرجح', local: 'محلي' }[e.strength] || e.strength) + ' · الحقل: ' + esc(e.field) + ' · ' + esc(e.signal) + '<br>المصدر: ' + esc(e.source) + ' · التحقق: ' + esc(fmtDate(e.checkedAt)) + '</div><q>' + esc(e.text) + '</q></div>').join('')
@@ -187,7 +218,7 @@
         ['حقول لم تتوفر', (prod.fieldsMissing || []).join('، ')]]) +
       (offer ? '<h3>العرض</h3>' + dl([['السعر', offer.price !== null && offer.price !== undefined ? offer.price + ' ' + (offer.currency || '') : null], ['السعر السابق', offer.listPrice], ['الخصم %', offer.discountPct],
         ['اسم البائع (يباع بواسطة)', offer.sellerName], ['معرف البائع', offer.sellerId], ['اسم الشاحن (يشحن بواسطة)', offer.shipperName], ['الشاحن هو البائع؟', r.sellerIsShipper], ['نوع الشاحن', r.shipperTypeAr], ['مدة التجهيز (أيام)', r.handlingText], ['التوصيل بعد (أيام من الفحص)', r.deliveryDaysText],
-        ['يشحن من (كما ظهر)', offer.shipsFrom], ['بلد الشحن (إن ثبت)', r.shippingOrigin], ['نص التنفيذ', offer.fulfillerText],
+        ['يشحن من (كما ظهر)', offer.shipsFrom], ['بلد الشحن (إن ثبت)', r.shippingOrigin], ['بلد عنوان نشاط البائع (صفحة البائع)', offer.sellerProfile ? offer.sellerProfile.code + (offer.sellerProfile.addressText ? ' — ' + offer.sellerProfile.addressText : '') : null], ['نص التنفيذ', offer.fulfillerText],
         ['نص التوصيل', offer.deliveryText], ['موعد التوصيل', offer.deliveryDate], ['عنوان التوصيل المعتمد', offer.deliveryLocation],
         ['سعر الشحن', offer.shippingCost === 0 ? 'مجاني' : offer.shippingCost], ['رسوم الاستيراد المقدرة', offer.importFees],
         ['التوفر', offer.availabilityText], ['المصدر', offer.dataSource], ['تاريخ التحقق', fmtDate(offer.lastVerifiedAt)]]) : '') +
@@ -400,6 +431,14 @@
     $('btn-refresh').onclick = async () => { const n = await crawler.enqueueRefresh(state.db, state.settings); setStatus('أُضيف ' + n + ' منتجًا إلى طابور التحديث.'); await runCrawl(); };
     $('btn-scan-current').onclick = scanCurrent;
     $('btn-diagnose').onclick = diagnose;
+    $('btn-calibrate').onclick = showCalibration;
+    $('calib-close').onclick = () => $('calib-dialog').close();
+    $('calib-export').onclick = async () => {
+      const evidence = await state.db.all('evidence');
+      const rows = exporter.buildRows(state.products, state.offers, evidence).filter(r => r.userStatusAr);
+      if (!rows.length) return setStatus('لا توجد أمثلة مصنّفة يدويًا للتصدير.', true);
+      download('calibration-' + stamp() + '.csv', exporter.toCSV(rows), 'text/csv;charset=utf-8');
+    };
     $('filter-catalog').onchange = () => { state.page = 1; applyView(); };
     $('btn-discover').onclick = async () => {
       setStatus('جارٍ اكتشاف الكتالوجات…');
@@ -471,7 +510,7 @@
       const s = state.settings;
       form.minDelay.value = s.minDelayMs / 1000; form.maxDelay.value = s.maxDelayMs / 1000; form.maxPages.value = s.maxPagesPerRun;
       form.depth.value = s.maxCategoryDepth; form.language.value = s.language || '';
-      form.autoCapture.checked = !!s.autoCapture; form.competitors.checked = !!s.fetchCompetitorOffers; form.importAsConfirmed.checked = !!s.importFeesAsConfirmed;
+      form.autoCapture.checked = !!s.autoCapture; form.sellerProfile.checked = s.fetchSellerProfile !== false; form.sellerAddrConfirmed.checked = !!s.sellerAddressAsConfirmed; form.competitors.checked = !!s.fetchCompetitorOffers; form.importAsConfirmed.checked = !!s.importFeesAsConfirmed;
       form.intlTransit.value = s.intlMinTransitDays; form.searchMin.value = s.searchMinDelayMs / 1000; form.searchMax.value = s.searchMaxDelayMs / 1000; form.skipFresh.value = s.skipFreshHours; form.intlHandling.value = s.intlMinHandlingDays; form.intlDelivery.value = s.intlMinDeliveryDays;
       form.seeds.value = (s.extraSeeds || []).join('\n'); $('settings-dialog').showModal();
     };
@@ -481,7 +520,7 @@
       await saveSettings(Object.assign({}, state.settings, {
         minDelayMs: minD * 1000, maxDelayMs: maxD * 1000, maxPagesPerRun: Math.max(1, parseInt(form.maxPages.value, 10) || 300),
         maxCategoryDepth: Math.min(4, Math.max(0, parseInt(form.depth.value, 10) || 0)), language: form.language.value,
-        autoCapture: form.autoCapture.checked, fetchCompetitorOffers: form.competitors.checked, importFeesAsConfirmed: form.importAsConfirmed.checked, extraSeeds: seeds,
+        autoCapture: form.autoCapture.checked, fetchSellerProfile: form.sellerProfile.checked, sellerAddressAsConfirmed: form.sellerAddrConfirmed.checked, fetchCompetitorOffers: form.competitors.checked, importFeesAsConfirmed: form.importAsConfirmed.checked, extraSeeds: seeds,
         intlMinTransitDays: Math.max(1, parseInt(form.intlTransit.value, 10) || 4),
         searchMinDelayMs: Math.max(500, (parseFloat(form.searchMin.value) || 1.5) * 1000), searchMaxDelayMs: Math.max(500, (parseFloat(form.searchMax.value) || 3) * 1000),
         skipFreshHours: Math.max(0, parseInt(form.skipFresh.value, 10) || 0),

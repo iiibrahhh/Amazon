@@ -1,10 +1,10 @@
 /* التصدير (CSV / XLSX) والاستيراد (CSV). لا تبعيات خارجية: كاتب XLSX مدمج (ZIP بدون ضغط). */
 (function (root, factory) {
   const dep = (n) => (typeof module === 'object' && module.exports) ? require('./' + n + '.js') : root.ASF[n];
-  const api = factory(dep('rules'), dep('ingest'));
+  const api = factory(dep('rules'), dep('ingest'), dep('opportunity'));
   if (typeof module === 'object' && module.exports) module.exports = api;
   else { root.ASF = root.ASF || {}; root.ASF.exporter = api; }
-})(typeof self !== 'undefined' ? self : this, function (rules, ingest) {
+})(typeof self !== 'undefined' ? self : this, function (rules, ingest, opportunity) {
 
   const STATUS_AR = { confirmed: 'مؤكد', likely: 'مرجح', unknown: 'غير معلوم', local: 'محلي / غير دولي' };
   const STATUS_FROM_AR = Object.fromEntries(Object.entries(STATUS_AR).map(([k, v]) => [v, k]));
@@ -28,6 +28,9 @@
     { key: 'shipperName', label: 'اسم الشاحن (يشحن بواسطة)', type: 'text', w: 24 },
     { key: 'sellerIsShipper', label: 'الشاحن هو البائع', type: 'text', w: 12 },
     { key: 'shipperTypeAr', label: 'نوع الشاحن', type: 'text', w: 16 },
+    { key: 'sellerCountryCode', label: 'بلد عنوان البائع (صفحة البائع)', type: 'text', w: 16 },
+    { key: 'sellerAddressText', label: 'عنوان نشاط البائع', type: 'text', w: 40 },
+    { key: 'opportunityScore', label: 'درجة الفرصة (0-100)', type: 'number', w: 13 },
     { key: 'handlingMinDays', label: 'مدة التجهيز - من (يوم)', type: 'number', w: 13 },
     { key: 'handlingMaxDays', label: 'مدة التجهيز - إلى (يوم)', type: 'number', w: 13 },
     { key: 'deliveryMinDays', label: 'التوصيل بعد - من (يوم من الفحص)', type: 'number', w: 17 },
@@ -79,6 +82,8 @@
         const isUser = !!(o && o.userStatus);
         const evText = ev.map(e => '[' + (STRENGTH_AR[e.strength] || e.strength) + '] ' + e.field + ': ' + e.text).join(' | ');
         const origin = o ? ((o.shippingOriginCountry && (COUNTRY_AR[o.shippingOriginCountry] || o.shippingOriginCountry)) || o.shippingOriginNote) : null;
+        const opp = (o && p.detailScanned !== false) ? opportunity.score({ status: st, bsrRank: p.bsrRank, rating: p.rating, reviewCount: p.reviewCount, price: o.price,
+          siblings: list.filter(x => x && x.offerKey !== o.offerKey).map(x => ({ shipperType: x.shipperType, status: x.userStatus || x.shippingStatus })), siblingsKnown: list.length >= 2 }) : null;
         rows.push({
           _asin: p.asin, _offerKey: o ? o.offerKey : null, _evidence: ev,
           asin: p.asin, title: p.title, brand: p.brand, categoryPath: p.categoryPath,
@@ -93,6 +98,9 @@
           deliveryLocation: o ? o.deliveryLocation || null : null,
           shipperType: o ? o.shipperType || null : null,
           shipperTypeAr: o && o.shipperType ? SHIPPER_TYPE_AR[o.shipperType] || o.shipperType : null,
+          sellerCountryCode: o && o.sellerProfile ? o.sellerProfile.code : null,
+          sellerAddressText: o && o.sellerProfile ? o.sellerProfile.addressText || null : null,
+          opportunity: opp, opportunityScore: opp ? opp.score : null,
           handlingMinDays: o && o.handlingMinDays !== undefined ? o.handlingMinDays : null,
           handlingMaxDays: o && o.handlingMaxDays !== undefined ? o.handlingMaxDays : null,
           deliveryMinDays: o && o.deliveryMinDays !== undefined ? o.deliveryMinDays : null,

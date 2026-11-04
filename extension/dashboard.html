@@ -18,6 +18,7 @@
       <button id="btn-resume">استكمال الجمع</button>
       <button id="btn-refresh">تحديث بيانات المنتجات</button>
       <button id="btn-scan-current">فحص صفحة المنتج الحالية</button>
+      <button id="btn-calibrate" class="ghost" title="يقارن التصنيف الآلي بتصنيفاتك اليدوية ويعرض الدقة والعتبات المقترحة">معايرة التصنيف</button>
       <button id="btn-diagnose" class="ghost" title="يجلب صفحة منتج واحدة ويعرض ما استُخرج منها ويحفظ نسخة HTML منقّحة للتشخيص">تشخيص صفحة منتج</button>
       <button id="btn-settings" class="ghost">الإعدادات</button>
     </div>
@@ -97,6 +98,7 @@
             <th data-sort="delivery" class="sortable num">التوصيل بعد<br><small>أيام</small></th>
             <th>بلد الشحن</th>
             <th data-sort="status" class="sortable">حالة الشحن الدولي</th>
+            <th data-sort="opp" class="sortable num" title="مؤشر إرشادي 0–100 (الشحن الدولي، الطلب، التقييم، المنافسة، السعر)">درجة الفرصة</th>
             <th class="num">سعر الشحن</th>
             <th class="num">رسوم الاستيراد</th>
             <th>موعد التوصيل</th>
@@ -119,6 +121,11 @@
     <pre id="log">—</pre>
   </details>
 
+  <dialog id="calib-dialog">
+    <div id="calib-body"></div>
+    <menu><button id="calib-export">تصدير الأمثلة CSV</button><button id="calib-close" class="primary">إغلاق</button></menu>
+  </dialog>
+
   <dialog id="settings-dialog">
     <form method="dialog" id="settings-form">
       <h2>الإعدادات</h2>
@@ -131,6 +138,8 @@
       </label>
       <label class="inline"><input type="checkbox" name="autoCapture"> التقاط الصفحات التي أتصفحها تلقائيًا</label>
       <label class="inline"><input type="checkbox" name="competitors"> (تجريبي) جلب قائمة العروض المنافسة لكل منتج — طلب إضافي لكل منتج</label>
+      <label class="inline"><input type="checkbox" name="sellerProfile"> جلب صفحة البائع لقراءة عنوان نشاطه (طلب إضافي لكل بائع جديد يشحن بنفسه، يُحفظ 30 يومًا)</label>
+      <label class="inline"><input type="checkbox" name="sellerAddrConfirmed"> اعتبار عنوان بائع أجنبي (مع شاحن = البائع) دليلًا «مؤكدًا» (الافتراضي: مرجح)</label>
       <label class="inline"><input type="checkbox" name="importAsConfirmed"> اعتبار «رسوم الاستيراد» دليلًا مؤكدًا (الافتراضي: مرجح فقط)</label>
       <label>عتبة مدة التجهيز لاعتبار الشحن دوليًا «مرجحًا» (أيام، مع شاحن = بائع)<input type="number" name="intlHandling" min="1" max="60"></label>
       <label>عتبة فارق النقل لاعتبار الشحن دوليًا «مرجحًا» (أيام: أقرب توصيل − أطول تجهيز، مع شاحن = بائع)<input type="number" name="intlTransit" min="1" max="60"></label>
@@ -151,8 +160,11 @@
   <script src="lib/parser.js"></script>
   <script src="lib/db.js"></script>
   <script src="lib/ingest.js"></script>
+  <script src="lib/opportunity.js"></script>
+  <script src="lib/calibration.js"></script>
   <script src="lib/export.js"></script>
   <script src="lib/crawler.js"></script>
+  <script src="lib/seller.js"></script>
   <script src="lib/search.js"></script>
   <script src="dashboard.js"></script>
 </body>

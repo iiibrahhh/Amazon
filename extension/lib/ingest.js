@@ -36,7 +36,7 @@
   function classifierOpts(ctx, url) {
     const st = ctx.settings || {};
     return { source: ctx.source, url, now: ctx.now, importFeesAsConfirmed: !!st.importFeesAsConfirmed,
-      intlMinHandlingDays: st.intlMinHandlingDays, intlMinDeliveryDays: st.intlMinDeliveryDays, intlMinTransitDays: st.intlMinTransitDays };
+      intlMinHandlingDays: st.intlMinHandlingDays, intlMinDeliveryDays: st.intlMinDeliveryDays, intlMinTransitDays: st.intlMinTransitDays, sellerAddressAsConfirmed: !!st.sellerAddressAsConfirmed };
   }
 
   async function log(db, level, msg, ctx) {
@@ -78,6 +78,7 @@
     rec.shipperType = offerIn.shipperType || null;
     rec.shipperName = offerIn.shipperName || null;   // تُستبدل في كل فحص: ما لم يثبت الآن لا يُبقى قديمه
     rec.shipsFrom = offerIn.shipsFrom || null;
+    rec.sellerProfile = offerIn.sellerProfile || null;   // عنوان نشاط البائع من صفحته (إن جُلبت)
     rec.extraction = offerIn.extraction || null;      // دليل الاستخراج (الطريقة/التسمية/النص) للبائع والشاحن والنوع
     rec.handlingMinDays = offerIn.handlingMinDays !== undefined ? offerIn.handlingMinDays : null;
     rec.handlingMaxDays = offerIn.handlingMaxDays !== undefined ? offerIn.handlingMaxDays : null;
@@ -117,6 +118,13 @@
     const asin = parsed.asin;
     const old = await db.get('products', asin);
 
+    // صفحة البائع المخزّنة (إن وُجدت): عنوان نشاطه يدخل التصنيف كقرينة ويُحفظ مع العرض
+    const sid = parsed.offer && parsed.offer.sellerId;
+    const sp = sid ? await db.get('sources', 'seller:' + String(sid).toUpperCase()) : null;
+    if (sp && sp.ok && sp.countryCode) {
+      const info = { code: sp.countryCode, isSaudi: !!sp.isSaudi, isForeign: !!sp.isForeign, addressText: sp.addressText, url: sp.url, label: sp.evidence && sp.evidence.label, text: sp.evidence && sp.evidence.text, checkedAt: sp.checkedAt };
+      parsed = Object.assign({}, parsed, { shippingFields: Object.assign({}, parsed.shippingFields, { sellerCountry: info }), offer: Object.assign({}, parsed.offer, { sellerProfile: info }) });
+    }
     const cls = classifier.classifyShipping(parsed.shippingFields, classifierOpts(ctx, parsed.url));
 
     const prod = mergeDefined(old, {

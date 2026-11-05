@@ -20,11 +20,26 @@
       <button id="btn-scan-current">فحص صفحة المنتج الحالية</button>
       <button id="btn-calibrate" class="ghost" title="يقارن التصنيف الآلي بتصنيفاتك اليدوية ويعرض الدقة والعتبات المقترحة">معايرة التصنيف</button>
       <button id="btn-diagnose" class="ghost" title="يجلب صفحة منتج واحدة ويعرض ما استُخرج منها ويحفظ نسخة HTML منقّحة للتشخيص">تشخيص صفحة منتج</button>
+      <button id="btn-backup" class="ghost" title="يحفظ كل بياناتك المحلية في ملف JSON">نسخ احتياطي</button>
+      <button id="btn-restore" class="ghost" title="يستبدل بياناتك الحالية بمحتوى ملف نسخة احتياطية">استعادة</button>
+      <input id="file-restore" type="file" accept=".json,application/json" hidden>
       <button id="btn-settings" class="ghost">الإعدادات</button>
     </div>
   </header>
 
   <p id="runstatus" class="runstatus" role="status">الحالة: متوقف.</p>
+
+  <details class="scope start-here" id="start-here">
+    <summary>ابدأ هنا: كيف أجد منتجًا يستحق التوريد؟</summary>
+    <ol>
+      <li><b>ابحث</b> عن منتج أو فئة في مربع «ابحث في Amazon.sa» (أو الصق رابط منتج/ASIN)، أو اضغط «بدء الجمع» لاستكشاف قوائم الأكثر مبيعًا.</li>
+      <li>اضغط <b>«فرص جاهزة للتاجر»</b>: تعرض المنتجات المفحوصة التي يُشحن أغلبها من الخارج (مؤكد/مرجح) وبائعها ليس أمازون، مرتبة بدرجة الفرصة.</li>
+      <li>اضغط على صف لترى <b>دليل الشحن</b> ودرجة الفرصة، ثم استعمل <b>روابط البحث عن المصدر</b> (AliExpress/Alibaba/Google) لمعرفة سعر الشراء.</li>
+      <li>أدخل <b>تكلفة الشراء</b> في «أدوات التاجر» لترى الربح التقديري والهامش وأدنى سعر للتعادل، واحفظ حالة المتابعة (مرشح، قيد الدراسة، تم التوريد، مرفوض).</li>
+      <li>صدّر إلى Excel/CSV ما تريد، وخذ <b>نسخة احتياطية</b> من بياناتك من الأعلى بين حين وآخر.</li>
+    </ol>
+    <p class="muted">الحكم «مؤكد» يعني نصًا صريحًا في الصفحة، و«مرجح» يعني قرائن (مدد شحن، عنوان البائع…) وليس يقينًا. الربح تقدير بنسب افتراضية قابلة للتعديل من «الإعدادات»؛ راجع جمارك المنتج ورسوم Amazon الفعلية قبل الشراء.</p>
+  </details>
 
   <section class="searchbox" aria-label="البحث عن منتج في Amazon.sa">
     <input id="q-amazon" type="search" placeholder="ابحث في Amazon.sa: اسم منتج، أو الصق رابط منتج، أو ASIN" autocomplete="off">
@@ -69,6 +84,16 @@
       <option value="amazon_global">الشاحن: أمازون العالمي</option>
       <option value="none">الشاحن غير معروف</option>
     </select>
+    <button id="btn-preset" title="المنتجات المفحوصة التي يُرجَّح أو يُؤكَّد شحنها من الخارج وبائعها ليس أمازون، مرتبة بدرجة الفرصة، دون المرفوضة">فرص جاهزة للتاجر</button>
+    <select id="filter-watch" aria-label="تصفية حسب المتابعة">
+      <option value="all">كل المتابعة</option>
+      <option value="candidate">مرشح</option>
+      <option value="studying">قيد الدراسة</option>
+      <option value="sourced">تم التوريد</option>
+      <option value="rejected">مرفوض</option>
+      <option value="none">بلا متابعة</option>
+      <option value="hide-rejected">إخفاء المرفوض</option>
+    </select>
     <select id="filter-rank" aria-label="تصفية حسب الترتيب">
       <option value="all">كل الترتيبات</option>
       <option value="10">ترتيب القسم/البحث ≤ 10</option>
@@ -111,6 +136,8 @@
             <th>بلد الشحن</th>
             <th data-sort="status" class="sortable">حالة الشحن الدولي</th>
             <th data-sort="opp" class="sortable num" title="مؤشر إرشادي 0–100 (الشحن الدولي، الطلب، التقييم، المنافسة، السعر)">درجة الفرصة</th>
+            <th>المتابعة</th>
+            <th data-sort="profit" class="sortable num" title="ربح الوحدة التقديري بعد إدخال تكلفة الشراء">ربح الوحدة</th>
             <th class="num">سعر الشحن</th>
             <th class="num">رسوم الاستيراد</th>
             <th>موعد التوصيل</th>
@@ -157,6 +184,12 @@
       <label>عتبة فارق النقل لاعتبار الشحن دوليًا «مرجحًا» (أيام: أقرب توصيل − أطول تجهيز، مع شاحن = بائع)<input type="number" name="intlTransit" min="1" max="60"></label>
       <label>في الجمع: كل كم منتج يُخصَّص واحد لمنتجات الاكتشاف (بلا ترتيب أو إصدارات جديدة؛ 0 = ترتيب صرف)<input type="number" name="rankMix" min="0" max="20"></label>
       <label>عتبة «سريعة تغيّر الترتيب» (|ln(السابق/الحالي)|: 0.4 ≈ تغيّر بنحو 50%، 0 = تعطيل)<input type="number" name="rankMove" min="0" max="3" step="0.1"></label>
+      <fieldset><legend>حاسبة الربح (افتراضات قابلة للتعديل)</legend>
+        <label>الجمارك الافتراضية %<input type="number" name="customsPct" min="0" max="100" step="0.5"></label>
+        <label>عمولة Amazon الافتراضية %<input type="number" name="referralFeePct" min="0" max="50" step="0.5"></label>
+        <label>ضريبة القيمة المضافة %<input type="number" name="vatPct" min="0" max="30" step="0.5"></label>
+        <label class="inline"><input type="checkbox" name="vatRecoverable"> أسترد ضريبة الاستيراد (مسجَّل في الضريبة) فلا تُحتسب تكلفة</label>
+      </fieldset>
       <label>أقل تأخير بين طلبات البحث (ثوانٍ)<input type="number" name="searchMin" min="0.5" step="0.5"></label>
       <label>أعلى تأخير بين طلبات البحث (ثوانٍ)<input type="number" name="searchMax" min="0.5" step="0.5"></label>
       <label>تخطّي المنتجات المفحوصة خلال آخر (ساعات؛ 0 = أعد فحصها دائمًا)<input type="number" name="skipFresh" min="0" max="168"></label>
@@ -175,6 +208,8 @@
   <script src="lib/db.js"></script>
   <script src="lib/ingest.js"></script>
   <script src="lib/opportunity.js"></script>
+  <script src="lib/merchant.js"></script>
+  <script src="lib/backup.js"></script>
   <script src="lib/calibration.js"></script>
   <script src="lib/export.js"></script>
   <script src="lib/crawler.js"></script>

@@ -487,7 +487,9 @@
     }
 
     const locEl = q(doc, SEL.deliveryLocation);
-    const deliveryLocation = locEl ? (T(locEl).replace(/^(?:deliver to|التوصيل الى|التوصيل إلى|توصيل الى|توصيل إلى)\s*/i, '') || null) : null;
+    let deliveryLocation = locEl ? (T(locEl).replace(/^(?:deliver to|التوصيل الى|التوصيل إلى|توصيل الى|توصيل إلى)\s*/i, '') || null) : null;
+    // خصوصية: الشريط يعرض «اسمك - المدينة»؛ نحتفظ بالمدينة فقط كي لا يُحفظ اسمك الشخصي ولا يُصدَّر
+    if (deliveryLocation) { const nm = deliveryLocation.match(/^([^\d\-–—]{1,40}?)\s+[-–—]\s+(\S.*)$/); if (nm && nm[1].trim().split(/\s+/).length <= 3) deliveryLocation = nm[2].trim(); }
     const catalogTop = (qa(doc, SEL.breadcrumbs).map(T).filter(Boolean)[0]) || null;
 
     const result = {

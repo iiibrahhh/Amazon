@@ -21,3 +21,9 @@ test('لا مفاتيح API أو كلمات مرور داخل المصدر', () 
   for (const f of walk(root).filter(f => /\.(js|json|html)$/.test(f)))
     assert.ok(!/AKIA[0-9A-Z]{12,}|secret[_-]?key\s*[:=]|password\s*[:=]/i.test(fs.readFileSync(f, 'utf8')), f);
 });
+test('الإصدار موحّد: package.json = manifest.json', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  assert.equal(pkg.version, m.version);
+  const lock = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package-lock.json'), 'utf8'));
+  assert.equal(lock.version, m.version);
+});

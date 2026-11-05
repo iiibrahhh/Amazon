@@ -1,6 +1,6 @@
 {
   "name": "amazon-sa-intl-finder",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "private": true,
   "description": "مستكشف شحن Amazon.sa الدولي — إضافة Chrome (MV3). التبعيات هنا لأغراض الاختبار فقط؛ الإضافة نفسها لا تحتاج npm.",
   "scripts": {

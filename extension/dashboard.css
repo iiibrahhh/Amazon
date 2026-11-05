@@ -91,6 +91,15 @@ th small { font-weight: 400; }
 .opp-bar { height: 6px; border-radius: 3px; background: var(--line); margin: 2px 0 6px; } .opp-bar > i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
 #calib-dialog { width: min(720px, 96vw); } #calib-body table { width: 100%; font-size: 13px; } #calib-body td, #calib-body th { padding: 4px 8px; }
 .mv-up { color: var(--c-confirmed); } .mv-down { color: var(--danger); }
+details.start-here { margin-bottom: 10px; } details.start-here ol { margin: 8px 0; padding-inline-start: 22px; line-height: 1.9; }
+.badge.watch-candidate { background: var(--c-confirmed-bg); color: var(--c-confirmed); } .badge.watch-studying { background: var(--c-likely-bg); color: var(--c-likely); }
+.badge.watch-sourced { background: var(--c-local-bg); color: var(--c-local); } .badge.watch-rejected { background: var(--c-unknown-bg); color: var(--c-unknown); text-decoration: line-through; }
+button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.mt label { display: block; margin: 6px 0; } .mt input[type=number], .mt select, .mt textarea { width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+.mt .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; } .profit-box { margin: 8px 0; padding: 8px 10px; border-radius: 6px; background: var(--c-unknown-bg); } .profit-box.pos { background: var(--c-confirmed-bg); } .profit-box.neg { background: #f6dcdc; color: #7a1f1f; }
+.profit-box table { width: 100%; font-size: 12.5px; } .profit-box td { padding: 2px 4px; border: 0; } .profit-box td:last-child { text-align: end; font-variant-numeric: tabular-nums; }
+.src-links a { margin-inline-end: 10px; }
+dialog fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 10px 0; }
 .warn-line { color: var(--c-likely); }
 @media (prefers-reduced-motion: no-preference) { button { transition: border-color .12s; } }
 

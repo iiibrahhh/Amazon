@@ -15,5 +15,14 @@
   "intlMinDeliveryDays": 14,
   "searchPages": 1,
   "searchDeepScan": 10,
+  "fetchSellerProfile": true,
+  "sellerProfileTtlDays": 30,
+  "sellerAddressAsConfirmed": false,
+  "rankMixEvery": 4,
+  "rankMoveThreshold": 0.4,
+  "customsPct": 5,
+  "referralFeePct": 15,
+  "vatPct": 15,
+  "vatRecoverable": false,
   "extraSeeds": []
 }

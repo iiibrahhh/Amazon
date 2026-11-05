@@ -1,6 +1,6 @@
 /* لوحة التحكم — تعمل كصفحة إضافة، وتشغّل الزاحف مباشرة (يجب إبقاء التبويب مفتوحًا أثناء الجمع). */
 (function () {
-  const { rules, parser, db: dbLib, ingest, exporter, crawler, search, opportunity, calibration } = self.ASF;
+  const { rules, parser, db: dbLib, ingest, exporter, crawler, search, opportunity, calibration, merchant, backup } = self.ASF;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtDate = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' }); };
@@ -9,7 +9,7 @@
 
   const state = {
     db: null, settings: Object.assign({}, rules.DEFAULT_SETTINGS), products: [], offers: [], rows: [], view: [],
-    sort: { key: 'checked', dir: 'desc' }, page: 1, perPage: 50, selected: new Set(), active: null, runner: null, wake: null, lastRefresh: 0, focus: null, focusLabel: '', searching: false, searchStop: false
+    sort: { key: 'checked', dir: 'desc' }, page: 1, perPage: 50, selected: new Set(), active: null, runner: null, wake: null, lastRefresh: 0, focus: null, focusLabel: '', searching: false, searchStop: false, preset: false
   };
 
   /* ---------------- إعدادات ---------------- */
@@ -24,7 +24,7 @@
   async function reload() {
     state.products = await state.db.all('products');
     state.offers = await state.db.all('offers');
-    state.rows = exporter.buildRows(state.products, state.offers, []);
+    state.rows = exporter.buildRows(state.products, state.offers, [], { settings: state.settings });
     refreshCatalogFilter();
     applyView();
     renderStats();
@@ -37,6 +37,11 @@
     if (state.focus) rows = rows.filter(r => state.focus.has(r._asin));
     if (st === 'unscanned') rows = rows.filter(r => r.detailScanned === false && !r._offerKey);
     else if (st !== 'all') rows = rows.filter(r => r.shippingStatus === st && (r._offerKey || r.detailScanned !== false));
+    const wf = $('filter-watch').value;
+    if (wf === 'none') rows = rows.filter(r => !r.merchantStatus);
+    else if (wf === 'hide-rejected') rows = rows.filter(r => r.merchantStatus !== 'rejected');
+    else if (wf !== 'all') rows = rows.filter(r => r.merchantStatus === wf);
+    if (state.preset) rows = rows.filter(r => r._offerKey && r.detailScanned !== false && (r.shippingStatus === 'confirmed' || r.shippingStatus === 'likely') && r.shipperType !== 'amazon' && r.merchantStatus !== 'rejected');
     const rk = $('filter-rank').value;
     const mvTh = state.settings.rankMoveThreshold === undefined ? 0.4 : Number(state.settings.rankMoveThreshold) || 0;
     if (rk === 'moving') rows = rows.filter(r => mvTh > 0 && r.rankMove !== null && r.rankMove !== undefined && Math.abs(r.rankMove) >= mvTh);
@@ -49,7 +54,7 @@
     const { key, dir } = state.sort; const m = dir === 'asc' ? 1 : -1;
     const val = (r) => key === 'status' ? (rules.STATUS[r.shippingStatus] || rules.STATUS.unknown).rank
       : key === 'checked' ? (r.lastCheckedAt || '') : key === 'price' ? r.price : key === 'rating' ? r.rating
-      : key === 'listrank' ? r.bestListRank : key === 'searchrank' ? r.latestSearchRank : key === 'bsr' ? r.bsrRank : key === 'opp' ? r.opportunityScore : key === 'handling' ? r.handlingMinDays : key === 'delivery' ? r.deliveryMinDays
+      : key === 'profit' ? r.profitPerUnit : key === 'listrank' ? r.bestListRank : key === 'searchrank' ? r.latestSearchRank : key === 'bsr' ? r.bsrRank : key === 'opp' ? r.opportunityScore : key === 'handling' ? r.handlingMinDays : key === 'delivery' ? r.deliveryMinDays
       : key === 'catalog' ? rules.foldForMatch(r.catalog || '')
       : key === 'title' ? rules.foldForMatch(r.title || '') : (r.asin || '');
     rows = rows.slice().sort((a, b) => {
@@ -127,6 +132,8 @@
         '<td>' + esc(r.shippingOrigin || '—') + '</td>' +
         '<td>' + badge(r.shippingStatus, unscanned, !!(r.statusSource && /^يدوي/.test(r.statusSource))) + '</td>' +
         '<td class="num opp">' + (r.opportunityScore !== null && r.opportunityScore !== undefined ? esc(r.opportunityScore) : '<span class="muted">—</span>') + '</td>' +
+        '<td>' + (r.merchantStatus ? '<span class="badge watch-' + esc(r.merchantStatus) + '">' + esc(r.merchantStatusAr) + '</span>' : '<span class="muted">—</span>') + '</td>' +
+        '<td class="num opp">' + (r.profitPerUnit !== null && r.profitPerUnit !== undefined ? '<span class="' + (r.profitPerUnit >= 0 ? 'mv-up' : 'mv-down') + '">' + esc(fmtNum(r.profitPerUnit)) + '</span>' : '<span class="muted">—</span>') + '</td>' +
         '<td class="num">' + (r.shippingCost === 'مجاني' ? 'مجاني' : (r.shippingCost !== null && r.shippingCost !== undefined ? fmtNum(r.shippingCost) : '<span class="muted">—</span>')) + '</td>' +
         '<td class="num">' + (r.importFees !== null && r.importFees !== undefined ? fmtNum(r.importFees) : '<span class="muted">—</span>') + '</td>' +
         '<td>' + esc(r.deliveryDate || '—') + (r.deliveryLocation ? '<br><span class="muted">إلى: ' + esc(r.deliveryLocation) + '</span>' : '') + '</td>' +
@@ -191,6 +198,35 @@
       res.mismatches.slice(0, 30).map(m => '<tr><td>' + esc(m.asin) + '</td><td>' + esc(m.sellerName || '—') + '</td><td>' + esc(m.truth === 'intl' ? 'دولي' : 'غير دولي') + '</td><td>' + esc(STATUS_AR[m.auto] || m.auto) + '</td><td>' + esc(m.handling.filter(x => x !== null && x !== undefined).join('–') || '—') + '</td><td>' + esc(m.delivery.filter(x => x !== null && x !== undefined).join('–') || '—') + '</td></tr>').join('') + '</table>';
     $('calib-body').innerHTML = html; $('calib-dialog').showModal();
   }
+  /* ---------------- أدوات التاجر: متابعة، حاسبة ربح، مصدر ---------------- */
+  const MT_FIELDS = [['cost', 'تكلفة الشراء (ريال/وحدة)'], ['shipping', 'الشحن إلى المملكة (ريال/وحدة)'], ['fulfillment', 'رسوم التنفيذ/التخزين (ريال/وحدة)'], ['other', 'تكاليف أخرى (ريال/وحدة)'], ['customsPct', 'الجمارك % (فارغ = الافتراضي)'], ['referralFeePct', 'عمولة Amazon % (فارغ = الافتراضي)']];
+  const profitDefaults = () => ({ customsPct: state.settings.customsPct, referralFeePct: state.settings.referralFeePct, vatPct: state.settings.vatPct, vatRecoverable: state.settings.vatRecoverable });
+  function profitBoxHtml(price, m) {
+    const r = merchant.calcProfit(Object.assign({ price }, m), profitDefaults());
+    if (!r.ok) return '<div class="profit-box">لحساب الربح أدخل: ' + esc(r.missing.join('، ')) + '.</div>';
+    return '<div class="profit-box ' + (r.profit >= 0 ? 'pos' : 'neg') + '"><b>الربح التقديري للوحدة: ' + esc(fmtNum(r.profit)) + ' ريال</b> · الهامش ' + esc(r.marginPct === null ? '—' : r.marginPct + '%') + ' · العائد ' + esc(r.roiPct === null ? '—' : r.roiPct + '%') +
+      '<br>أدنى سعر بيع للتعادل: <b>' + esc(r.breakEvenPrice === null ? '—' : fmtNum(r.breakEvenPrice)) + ' ريال</b> (شامل الضريبة)' +
+      '<table>' + r.lines.filter(l => l[1] !== 0).map(l => '<tr><td>' + esc(l[0]) + '</td><td>' + esc(fmtNum(l[1])) + '</td></tr>').join('') + '</table>' +
+      '<span class="muted">تقدير بافتراضات (جمارك ' + esc(r.assumptions.customsPct) + '%، عمولة ' + esc(r.assumptions.referralFeePct) + '% محسوبة على السعر شاملًا الضريبة، ضريبة ' + esc(r.assumptions.vatPct) + '%). راجع الرسوم الفعلية قبل الشراء.</span></div>';
+  }
+  function merchantHtml(r, prod) {
+    const m = prod.merchant || {}, price = r.price;
+    const opt = (v, t) => '<option value="' + v + '"' + (m.status === v ? ' selected' : '') + '>' + t + '</option>';
+    const links = merchant.sourcingLinks(prod);
+    return '<h3>أدوات التاجر</h3><div class="mt" data-asin="' + esc(r._asin) + '">' +
+      '<label>حالة المتابعة <select id="mt-status"><option value="">— بلا —</option>' + Object.entries(merchant.WATCH_STATUS).map(([k, v]) => opt(k, v)).join('') + '</select></label>' +
+      '<label>ملاحظتي <textarea id="mt-note" rows="2" maxlength="500">' + esc(m.note || '') + '</textarea></label>' +
+      '<div class="grid2">' + MT_FIELDS.map(([k, t]) => '<label>' + esc(t) + '<input type="number" min="0" step="0.01" id="mt-' + k + '" value="' + esc(m[k] !== undefined ? m[k] : '') + '"></label>').join('') + '</div>' +
+      '<div id="mt-profit">' + profitBoxHtml(price, m) + '</div>' +
+      '<div class="scope-actions"><button id="mt-save" class="primary">حفظ</button><button id="mt-clear">مسح بياناتي لهذا المنتج</button></div>' +
+      (links.length ? '<p class="src-links"><b>ابحث عن المصدر:</b> ' + links.map(l => '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">' + esc(l.name) + '</a>').join('') + '<br><span class="muted">البحث بـ«' + esc(merchant.sourcingQuery(prod)) + '». روابط بحث فقط، ويتحقق التاجر بنفسه من تطابق المنتج.</span></p>' : '') + '</div>';
+  }
+  function readMerchantForm() {
+    const v = (id) => ($(id) || {}).value;
+    const raw = { status: v('mt-status'), note: v('mt-note') };
+    MT_FIELDS.forEach(([k]) => { raw[k] = v('mt-' + k); });
+    return raw;
+  }
   function userVerdictForm(o) {
     const opt = (v, t) => '<option value="' + v + '"' + (o.userStatus === v ? ' selected' : '') + '>' + t + '</option>';
     return '<h3>تحقق يدوي (من عندك)</h3><div class="uv">' +
@@ -218,7 +254,7 @@
       '<h2>' + esc(r.title || r.asin) + '</h2>' +
       '<p>' + badge(r.shippingStatus, unscanned, !!(r.statusSource && /^يدوي/.test(r.statusSource))) + (r.shippingOrigin ? ' <span class="muted">— بلد الشحن: ' + esc(r.shippingOrigin) + '</span>' : '') + '</p>' +
       ((r.statusSource && /^يدوي/.test(r.statusSource)) ? '<p class="muted">هذه الحالة <b>يدوية من المستخدم</b> ولا تعني أن Amazon.sa أثبتتها. التصنيف الآلي لهذا العرض: <b>' + esc(STATUS_AR[r.autoStatus] || STATUS_AR.unknown) + '</b>.</p>' : '') +
-      verdictHtml(r, unscanned) + opportunityHtml(r) +
+      verdictHtml(r, unscanned) + opportunityHtml(r) + merchantHtml(r, prod) +
       (offer ? userVerdictForm(offer) : '') +
       '<h3>دليل التصنيف</h3>' +
       (evidence.length ? evidence.map(e => '<div class="ev"><div class="meta">' + esc({ confirmed: 'مؤكد', likely: 'مرجح', local: 'محلي' }[e.strength] || e.strength) + ' · الحقل: ' + esc(e.field) + ' · ' + esc(e.signal) + '<br>المصدر: ' + esc(e.source) + ' · التحقق: ' + esc(fmtDate(e.checkedAt)) + '</div><q>' + esc(e.text) + '</q></div>').join('')
@@ -408,7 +444,7 @@
   }
   async function exportRows() {
     const evidence = await state.db.all('evidence');
-    const all = exporter.buildRows(state.products, state.offers, evidence);
+    const all = exporter.buildRows(state.products, state.offers, evidence, { settings: state.settings });
     const keys = state.selected.size ? state.selected : new Set(state.view.map(rowKey));
     return all.filter(r => keys.has(rowKey(r)));
   }
@@ -444,6 +480,30 @@
     $('btn-scan-current').onclick = scanCurrent;
     $('btn-diagnose').onclick = diagnose;
     $('btn-calibrate').onclick = showCalibration;
+    $('btn-preset').onclick = () => {
+      state.preset = !state.preset; $('btn-preset').classList.toggle('on', state.preset);
+      if (state.preset) state.sort = { key: 'opp', dir: 'desc' };
+      state.page = 1; applyView();
+      setStatus(state.preset ? 'عرض «فرص جاهزة للتاجر»: ' + state.view.length + ' منتجًا (مفحوصة، شحن دولي مؤكد/مرجح، الشاحن ليس أمازون، دون المرفوض)، مرتبة بدرجة الفرصة.' : 'أُلغي عرض الفرص الجاهزة.');
+    };
+    $('filter-watch').onchange = () => { state.page = 1; applyView(); };
+    $('btn-backup').onclick = async () => {
+      const data = await backup.exportAll(state.db, state.settings, (self.chrome && chrome.runtime && chrome.runtime.getManifest ? chrome.runtime.getManifest().version : null));
+      download('amazon-sa-finder-backup-' + stamp() + '.json', JSON.stringify(data), 'application/json');
+      setStatus('حُفظت نسخة احتياطية: ' + data.stores.products.length + ' منتجًا و' + data.stores.offers.length + ' عرضًا.');
+    };
+    $('btn-restore').onclick = () => $('file-restore').click();
+    $('file-restore').onchange = async (e) => {
+      const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+      try {
+        const obj = JSON.parse(await f.text()); backup.validate(obj);
+        if (!confirm('ستُستبدل بياناتك الحالية (' + state.products.length + ' منتجًا) بمحتوى النسخة (' + (obj.stores.products || []).length + ' منتجًا، بتاريخ ' + (obj.createdAt || '؟') + '). هذا لا يمكن التراجع عنه. المتابعة؟')) return;
+        const r = await backup.importAll(state.db, obj);
+        if (r.settings && Object.keys(r.settings).length) await saveSettings(Object.assign({}, rules.DEFAULT_SETTINGS, r.settings));
+        state.selected.clear(); state.active = null; $('detail').hidden = true; document.querySelector('.layout').classList.remove('with-detail');
+        await reload(); renderScope(); setStatus('استُعيدت البيانات: ' + r.counts.products + ' منتجًا و' + r.counts.offers + ' عرضًا.');
+      } catch (err) { setStatus('تعذرت الاستعادة (لم تُمَس بياناتك): ' + err.message, true); }
+    };
     $('calib-close').onclick = () => $('calib-dialog').close();
     $('calib-export').onclick = async () => {
       const evidence = await state.db.all('evidence');
@@ -502,7 +562,20 @@
     });
     $('pager').addEventListener('click', (e) => { if (e.target.id === 'pg-prev') { state.page--; renderTable(); } if (e.target.id === 'pg-next') { state.page++; renderTable(); } });
     $('pager').addEventListener('change', (e) => { if (e.target.id === 'pg-size') { state.perPage = parseInt(e.target.value, 10); state.page = 1; applyView(); } });
+    $('detail').addEventListener('input', (e) => {
+      if (!e.target.id || !/^mt-/.test(e.target.id) || e.target.id === 'mt-status' || e.target.id === 'mt-note') return;
+      const row = state.rows.find(x => rowKey(x) === state.active); if (!row) return;
+      $('mt-profit').innerHTML = profitBoxHtml(row.price, merchant.cleanMerchantData(readMerchantForm()) || {});
+    });
     $('detail').addEventListener('click', async (e) => {
+      if (e.target.id === 'mt-save' || e.target.id === 'mt-clear') {
+        const asin = e.target.closest('.mt').dataset.asin;
+        try {
+          await ingest.setMerchantData(state.db, asin, e.target.id === 'mt-clear' ? null : merchant.cleanMerchantData(readMerchantForm()));
+          const key = state.active; setStatus(e.target.id === 'mt-clear' ? 'مُسحت بياناتك لهذا المنتج.' : 'حُفظت بيانات التاجر.'); await reload(); await showDetail(key);
+        } catch (err) { setStatus(err.message, true); }
+        return;
+      }
       const k = e.target.dataset && e.target.dataset.k;
       if (e.target.id === 'uv-save') {
         const status = $('uv-status').value;
@@ -523,7 +596,7 @@
       const s = state.settings;
       form.minDelay.value = s.minDelayMs / 1000; form.maxDelay.value = s.maxDelayMs / 1000; form.maxPages.value = s.maxPagesPerRun;
       form.depth.value = s.maxCategoryDepth; form.language.value = s.language || '';
-      form.rankMix.value = s.rankMixEvery; form.rankMove.value = s.rankMoveThreshold; form.autoCapture.checked = !!s.autoCapture; form.sellerProfile.checked = s.fetchSellerProfile !== false; form.sellerAddrConfirmed.checked = !!s.sellerAddressAsConfirmed; form.competitors.checked = !!s.fetchCompetitorOffers; form.importAsConfirmed.checked = !!s.importFeesAsConfirmed;
+      form.rankMix.value = s.rankMixEvery; form.customsPct.value = s.customsPct; form.referralFeePct.value = s.referralFeePct; form.vatPct.value = s.vatPct; form.vatRecoverable.checked = !!s.vatRecoverable; form.rankMove.value = s.rankMoveThreshold; form.autoCapture.checked = !!s.autoCapture; form.sellerProfile.checked = s.fetchSellerProfile !== false; form.sellerAddrConfirmed.checked = !!s.sellerAddressAsConfirmed; form.competitors.checked = !!s.fetchCompetitorOffers; form.importAsConfirmed.checked = !!s.importFeesAsConfirmed;
       form.intlTransit.value = s.intlMinTransitDays; form.searchMin.value = s.searchMinDelayMs / 1000; form.searchMax.value = s.searchMaxDelayMs / 1000; form.skipFresh.value = s.skipFreshHours; form.intlHandling.value = s.intlMinHandlingDays; form.intlDelivery.value = s.intlMinDeliveryDays;
       form.seeds.value = (s.extraSeeds || []).join('\n'); $('settings-dialog').showModal();
     };
@@ -533,7 +606,7 @@
       await saveSettings(Object.assign({}, state.settings, {
         minDelayMs: minD * 1000, maxDelayMs: maxD * 1000, maxPagesPerRun: Math.max(1, parseInt(form.maxPages.value, 10) || 300),
         maxCategoryDepth: Math.min(4, Math.max(0, parseInt(form.depth.value, 10) || 0)), language: form.language.value,
-        rankMixEvery: Math.max(0, Math.min(20, parseInt(form.rankMix.value, 10) || 0)), rankMoveThreshold: Math.max(0, Math.min(3, parseFloat(form.rankMove.value) || 0)), autoCapture: form.autoCapture.checked, fetchSellerProfile: form.sellerProfile.checked, sellerAddressAsConfirmed: form.sellerAddrConfirmed.checked, fetchCompetitorOffers: form.competitors.checked, importFeesAsConfirmed: form.importAsConfirmed.checked, extraSeeds: seeds,
+        customsPct: Math.max(0, parseFloat(form.customsPct.value) || 0), referralFeePct: Math.max(0, parseFloat(form.referralFeePct.value) || 0), vatPct: Math.max(0, parseFloat(form.vatPct.value) || 0), vatRecoverable: form.vatRecoverable.checked, rankMixEvery: Math.max(0, Math.min(20, parseInt(form.rankMix.value, 10) || 0)), rankMoveThreshold: Math.max(0, Math.min(3, parseFloat(form.rankMove.value) || 0)), autoCapture: form.autoCapture.checked, fetchSellerProfile: form.sellerProfile.checked, sellerAddressAsConfirmed: form.sellerAddrConfirmed.checked, fetchCompetitorOffers: form.competitors.checked, importFeesAsConfirmed: form.importAsConfirmed.checked, extraSeeds: seeds,
         intlMinTransitDays: Math.max(1, parseInt(form.intlTransit.value, 10) || 4),
         searchMinDelayMs: Math.max(500, (parseFloat(form.searchMin.value) || 1.5) * 1000), searchMaxDelayMs: Math.max(500, (parseFloat(form.searchMax.value) || 3) * 1000),
         skipFreshHours: Math.max(0, parseInt(form.skipFresh.value, 10) || 0),

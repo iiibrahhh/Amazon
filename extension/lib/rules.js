@@ -90,9 +90,9 @@
   const PATTERNS = [
     // --- مؤكد: نص صريح يفيد بالشحن من خارج السعودية ---
     { id: 'ships_from_abroad_en', strength: 'confirmed',
-      re: /\b(?:ships?|shipped|dispatch(?:es|ed)?|sent|delivered)\s+from\s+(?:abroad|overseas|outside\s+(?:of\s+)?(?:the\s+)?(?:saudi(?:\s+arabia)?|ksa|kingdom))\b/ },
+      re: /\b(?:ships?|shipped|dispatch(?:es|ed)?|sent|delivered)\s+(?:(?:the\s+)?(?:item|product)\s+)?from\s+(?:abroad|overseas|outside\s+(?:of\s+)?(?:the\s+)?(?:saudi(?:\s+arabia)?|ksa|kingdom))\b/ },
     { id: 'ships_from_abroad_ar', strength: 'confirmed',
-      re: /(?:يشحن|تشحن|شحن|يتم الشحن|يرسل|ارسال|يتم الارسال)\s*(?:من)\s*(?:الخارج|خارج\s+(?:المملكه|السعوديه))/ },
+      re: /(?:يشحن|تشحن|شحن|يتم الشحن|يرسل|ارسال|يتم الارسال)\s*(?:(?:المنتج|السلعه|الطلب|هذا المنتج)\s+)?(?:من)\s*(?:الخارج|خارج\s+(?:المملكه|السعوديه))/ },
     { id: 'item_shipped_internationally_en', strength: 'confirmed',
       re: /\bthis item (?:is|will be) (?:shipped|sent|dispatched) (?:internationally|from (?:abroad|overseas))\b/ },
 

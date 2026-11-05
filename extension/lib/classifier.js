@@ -95,6 +95,7 @@
     const sources = [
       ['shipsFrom', f.shipsFrom && !f.shipsFromIsName ? 'ships from ' + f.shipsFrom : ''],   // اسم جهة (شاحن) ليس مكانًا: لا نركّب منه «ships from»
       ['fulfillerText', f.fulfillerText],
+      ['availabilityBlockText', f.availabilityBlockText],   // مثل «يشحن المنتج من خارج المملكة العربية السعودية» داخل صندوق التوفر
       ['deliveryText', f.deliveryText],
       ['importFeesText', f.importFeesText],
       ['badges', (f.badges || []).join(' | ')],

@@ -82,13 +82,13 @@
   async function getCached(db, id) { return id ? (await db.get('sources', cacheKey(id))) || null : null; }
 
   /** يجلب صفحة البائع إن لم تكن في الذاكرة (أو انتهت صلاحيتها) ويخزنها في مخزن sources. يرمي blocked/throttled. */
-  async function ensureProfile(deps, sellerId) {
+  async function ensureProfile(deps, sellerId, pagePath) {
     const settings = deps.settings || {};
     const ttlMs = (settings.sellerProfileTtlDays === undefined ? 30 : Number(settings.sellerProfileTtlDays) || 0) * 86400000;
     const cached = await getCached(deps.db, sellerId);
     if (cached && ttlMs > 0 && Date.now() - Date.parse(cached.checkedAt) < ttlMs) return { profile: cached, fetched: false };
     if (deps.sleep && deps.delay) await deps.sleep(deps.delay());
-    const url = sellerUrl(settings, sellerId);
+    const url = pagePath && /^\/[a-z]/i.test(pagePath) ? baseOf(settings) + pagePath : sellerUrl(settings, sellerId);   // نفضّل رابط الصفحة نفسها إن وُجد
     const resp = await deps.fetchHtml(url);
     if (resp.status === 429 || resp.status === 503) throw Object.assign(new Error('استجابة ' + resp.status + ' (تقييد مؤقت) عند جلب صفحة البائع'), { throttled: true });
     const rec = { id: cacheKey(sellerId), sellerId: String(sellerId).toUpperCase(), url, checkedAt: new Date().toISOString(), httpStatus: resp.status };

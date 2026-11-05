@@ -109,7 +109,7 @@ test('ASIN أو رابط منتج: يجلب الصفحة ويحلل الشحن �
   assert.equal(res.classification.status, 'likely');
   assert.ok(res.offerKey.startsWith('B0DCVPGB9N|'));
   // صفحة البائع تُطلب بعد صفحة المنتج (بائع يشحن بنفسه)؛ فشلها (404 هنا) لا يمنع حفظ المنتج
-  assert.deepEqual(site.calls, [B + '/dp/B0DCVPGB9N', B + '/sp?seller=A3FW2YHPVTP5KN']);
+  assert.deepEqual(site.calls, [B + '/dp/B0DCVPGB9N', B + '/gp/aag/main?seller=A3FW2YHPVTP5KN']);
   const o = await db.get('offers', res.offerKey);
   assert.equal(o.shipperType, 'seller'); assert.equal(o.handlingMinDays, 9);
   assert.equal((await db.get('products', 'B0DCVPGB9N')).detailScanned, true);

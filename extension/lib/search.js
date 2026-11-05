@@ -74,7 +74,7 @@
     // صفحة البائع: طلب إضافي لكل بائع جديد فقط (مخزّنة 30 يومًا)، ولبائع يشحن بنفسه فقط (لا فائدة منها مع شاحن أمازون)
     let stopError = null;
     if (settings.fetchSellerProfile === true && parsed.offer.sellerId && parsed.offer.shipperType === 'seller') {
-      try { await seller.ensureProfile(deps, parsed.offer.sellerId); }
+      try { await seller.ensureProfile(deps, parsed.offer.sellerId, parsed.offer.sellerPageUrl); }
       catch (e) {
         if (e.blocked || e.throttled) stopError = e;
         else await ingest.log(deps.db, 'warn', 'صفحة البائع ' + parsed.offer.sellerId + ': ' + e.message, { asin });

@@ -90,6 +90,7 @@ th small { font-weight: 400; }
 .opp { font-weight: 600; font-variant-numeric: tabular-nums; }
 .opp-bar { height: 6px; border-radius: 3px; background: var(--line); margin: 2px 0 6px; } .opp-bar > i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
 #calib-dialog { width: min(720px, 96vw); } #calib-body table { width: 100%; font-size: 13px; } #calib-body td, #calib-body th { padding: 4px 8px; }
+.mv-up { color: var(--c-confirmed); } .mv-down { color: var(--danger); }
 .warn-line { color: var(--c-likely); }
 @media (prefers-reduced-motion: no-preference) { button { transition: border-color .12s; } }
 

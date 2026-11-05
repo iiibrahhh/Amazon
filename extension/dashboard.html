@@ -76,6 +76,7 @@
       <option value="50">≤ 50</option>
       <option value="100">≤ 100</option>
       <option value="none">بلا ترتيب معروف</option>
+      <option value="moving">سريعة تغيّر الترتيب</option>
     </select>
     <input id="filter-shipper-name" type="search" class="shipper-name" placeholder="اسم الشاحن: كلمة أو أكثر مفصولة بفاصلة، و«-كلمة» للاستبعاد" aria-label="تصفية اسم الشاحن">
     <span class="spacer"></span>
@@ -155,6 +156,7 @@
       <label>عتبة مدة التجهيز لاعتبار الشحن دوليًا «مرجحًا» (أيام، مع شاحن = بائع)<input type="number" name="intlHandling" min="1" max="60"></label>
       <label>عتبة فارق النقل لاعتبار الشحن دوليًا «مرجحًا» (أيام: أقرب توصيل − أطول تجهيز، مع شاحن = بائع)<input type="number" name="intlTransit" min="1" max="60"></label>
       <label>في الجمع: كل كم منتج يُخصَّص واحد لمنتجات الاكتشاف (بلا ترتيب أو إصدارات جديدة؛ 0 = ترتيب صرف)<input type="number" name="rankMix" min="0" max="20"></label>
+      <label>عتبة «سريعة تغيّر الترتيب» (|ln(السابق/الحالي)|: 0.4 ≈ تغيّر بنحو 50%، 0 = تعطيل)<input type="number" name="rankMove" min="0" max="3" step="0.1"></label>
       <label>أقل تأخير بين طلبات البحث (ثوانٍ)<input type="number" name="searchMin" min="0.5" step="0.5"></label>
       <label>أعلى تأخير بين طلبات البحث (ثوانٍ)<input type="number" name="searchMax" min="0.5" step="0.5"></label>
       <label>تخطّي المنتجات المفحوصة خلال آخر (ساعات؛ 0 = أعد فحصها دائمًا)<input type="number" name="skipFresh" min="0" max="168"></label>

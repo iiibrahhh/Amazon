@@ -4,10 +4,10 @@
    - الاعتماديات (fetchHtml, parseHtml, sleep) تُحقن لتسهيل الاختبار. */
 (function (root, factory) {
   const dep = (n) => (typeof module === 'object' && module.exports) ? require('./' + n + '.js') : root.ASF[n];
-  const api = factory(dep('rules'), dep('parser'), dep('ingest'), dep('seller'));
+  const api = factory(dep('rules'), dep('parser'), dep('ingest'), dep('seller'), dep('crawler'));
   if (typeof module === 'object' && module.exports) module.exports = api;
   else { root.ASF = root.ASF || {}; root.ASF.search = api; }
-})(typeof self !== 'undefined' ? self : this, function (rules, parser, ingest, seller) {
+})(typeof self !== 'undefined' ? self : this, function (rules, parser, ingest, seller, crawler) {
 
   const ASIN_RE = /^(?:B0[A-Z0-9]{8}|\d{9}[\dX])$/i;
   const baseOf = (settings) => (settings && settings.baseUrl) || rules.DEFAULT_SETTINGS.baseUrl;
@@ -50,7 +50,9 @@
       if (/^[A-Z0-9]{10}$/.test(a)) real.add(a);
     });
     const items = real.size ? res.items.filter(i => real.has(i.asin)) : res.items.filter(i => i.title || i.price !== null);
-    return { items: items.map(i => { const c = Object.assign({}, i); delete c._href; return c; }), nextPage: res.nextPage };
+    // ترتيب البحث العضوي: موضع الظهور بين النتائج الحقيقية بلا إعلانات
+    let pos = 0;
+    return { items: items.map(i => { const c = Object.assign({}, i); delete c._href; c.position = c.sponsored ? null : ++pos; c.rank = c.position; c.rankBasis = c.position ? 'position' : null; return c; }), nextPage: res.nextPage };
   }
 
   function httpError(resp) {
@@ -145,6 +147,7 @@
     const catalog = 'بحث: ' + q.keyword;
     const pages = Math.min(5, Math.max(1, parseInt(opts.pages, 10) || 1));
     const seen = new Set();
+    let organic = 0; const rankOf = {};
     for (let p = 1; p <= pages; p++) {
       if (stopped()) { out.stoppedBecause = 'user_stop'; break; }
       progress({ phase: 'search', page: p, pages, found: seen.size });
@@ -158,7 +161,11 @@
         const res = parseSearchDocument(doc, baseOf(settings));
         const fresh = res.items.filter(i => !seen.has(i.asin));
         fresh.forEach(i => { seen.add(i.asin); out.asins.push(i.asin); });
-        out.newProducts += await ingest.ingestListingItems(deps.db, fresh, { source: 'amazon.sa:search', catalog });
+        // ترتيب البحث تراكمي عبر الصفحات (صفحة 2 تكمل من حيث انتهت الأولى)، والإعلانات بلا ترتيب
+        const ranked = fresh.map(i => Object.assign({}, i, { rank: i.rank ? organic + i.rank : null }));
+        organic += res.items.filter(i => i.position).length;
+        out.newProducts += await ingest.ingestListingItems(deps.db, ranked, { source: 'amazon.sa:search', catalog, query: q.keyword });
+        ranked.forEach(i => { if (i.rank) rankOf[i.asin] = i.rank; });
         if (!res.items.length || !res.nextPage) break;
       } catch (e) {
         out.errors++; out.error = e.message;
@@ -189,6 +196,16 @@
         if (r.stop) break;
       }
       progress({ phase: 'detail', done: out.scanned, total: targets.length, found: out.found });
+    }
+    // ما لم يُفحص من النتائج يدخل طابور الجمع بترتيبه في البحث: «استكمال الجمع» يتقدم من الأعلى ترتيبًا إلى الأقل
+    out.queuedRemainder = 0;
+    if (opts.queueRemainder !== false && out.found) {
+      for (const a of out.asins) {
+        const prod = await deps.db.get('products', a);
+        if (prod && prod.detailScanned) continue;
+        const added = await crawler.enqueue(deps.db, { url: baseOf(settings) + '/dp/' + a, type: 'product', asin: a, depth: 0, origin: 'search:' + q.keyword, catalog, rank: rankOf[a] || null, rankKind: 'search' });
+        if (added) out.queuedRemainder++;
+      }
     }
     if (!out.stoppedBecause) out.stoppedBecause = 'done';
     return out;

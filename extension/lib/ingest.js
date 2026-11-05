@@ -172,6 +172,27 @@
   }
 
   /** يدخل منتجات من صفحات القوائم (بيانات جزئية، بلا حكم على الشحن). */
+  const RANKED_KINDS = new Set(['bestsellers', 'new-releases', 'movers', 'most-wished']);
+  /** يسجل ترتيب المنتج: في قائمة قسم (ctx.listKey/listKind) أو في نتائج بحث (ctx.query). الإعلانات والعناصر بلا ترتيب لا تُسجَّل. */
+  function applyRank(rec, old, it, ctx) {
+    const rank = it.rank;
+    rec.listRanks = Object.assign({}, old && old.listRanks); rec.searchRanks = Object.assign({}, old && old.searchRanks);
+    if (rank !== null && rank !== undefined && rank > 0) {
+      if (ctx.query) {
+        rec.searchRanks[ctx.query] = { rank, at: ctx.now };
+        const keys = Object.keys(rec.searchRanks).sort((a, b) => rec.searchRanks[b].at < rec.searchRanks[a].at ? -1 : 1);
+        keys.slice(10).forEach(k => delete rec.searchRanks[k]);       // نحتفظ بآخر 10 عبارات بحث
+      } else if (ctx.listKey && RANKED_KINDS.has(ctx.listKind)) {
+        rec.listRanks[ctx.listKey] = { rank, kind: ctx.listKind, basis: it.rankBasis || null, at: ctx.now };
+      }
+    }
+    const lr = Object.values(rec.listRanks).map(x => x.rank), sr = Object.entries(rec.searchRanks).sort((a, b) => a[1].at < b[1].at ? 1 : -1);
+    rec.bestListRank = lr.length ? Math.min.apply(null, lr) : null;
+    rec.bestListCatalog = lr.length ? Object.keys(rec.listRanks).find(k => rec.listRanks[k].rank === rec.bestListRank) : null;
+    rec.latestSearchRank = sr.length ? sr[0][1].rank : null;
+    rec.latestSearchQuery = sr.length ? sr[0][0] : null;
+  }
+
   async function ingestListingItems(db, items, ctx) {
     ctx = Object.assign({ now: new Date().toISOString(), source: 'amazon.sa:listing-page' }, ctx || {});
     let created = 0;
@@ -191,6 +212,7 @@
       rec.sources = Array.from(new Set([].concat(old && old.sources || [], [ctx.source])));
       rec.lastSeenInListingAt = ctx.now;
       rec.catalog = (old && old.catalog) || ctx.catalog || null;
+      applyRank(rec, old, it, ctx);
       await db.put('products', rec);
     }
     return created;

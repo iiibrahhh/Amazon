@@ -37,6 +37,8 @@
     if (state.focus) rows = rows.filter(r => state.focus.has(r._asin));
     if (st === 'unscanned') rows = rows.filter(r => r.detailScanned === false && !r._offerKey);
     else if (st !== 'all') rows = rows.filter(r => r.shippingStatus === st && (r._offerKey || r.detailScanned !== false));
+    const rk = $('filter-rank').value;
+    if (rk !== 'all') rows = rows.filter(r => { const best = [r.bestListRank, r.latestSearchRank].filter(v => v !== null && v !== undefined); return rk === 'none' ? !best.length : (best.length && Math.min.apply(null, best) <= Number(rk)); });
     const shipCond = { type: $('filter-shipper-type').value, name: $('filter-shipper-name').value };
     if (shipCond.type !== 'all' || shipCond.name.trim()) rows = rows.filter(r => exporter.matchShipper(r, shipCond));
     const cat = $('filter-catalog').value;
@@ -45,7 +47,7 @@
     const { key, dir } = state.sort; const m = dir === 'asc' ? 1 : -1;
     const val = (r) => key === 'status' ? (rules.STATUS[r.shippingStatus] || rules.STATUS.unknown).rank
       : key === 'checked' ? (r.lastCheckedAt || '') : key === 'price' ? r.price : key === 'rating' ? r.rating
-      : key === 'opp' ? r.opportunityScore : key === 'handling' ? r.handlingMinDays : key === 'delivery' ? r.deliveryMinDays
+      : key === 'listrank' ? r.bestListRank : key === 'searchrank' ? r.latestSearchRank : key === 'bsr' ? r.bsrRank : key === 'opp' ? r.opportunityScore : key === 'handling' ? r.handlingMinDays : key === 'delivery' ? r.deliveryMinDays
       : key === 'catalog' ? rules.foldForMatch(r.catalog || '')
       : key === 'title' ? rules.foldForMatch(r.title || '') : (r.asin || '');
     rows = rows.slice().sort((a, b) => {
@@ -111,6 +113,9 @@
         '<td class="title"><div class="t">' + esc(r.title || '— (بلا اسم)') + '</div></td>' +
         '<td><span class="ltr">' + esc(r.asin) + '</span></td>' +
         '<td>' + esc(r.catalog || '—') + '</td>' +
+        '<td class="num" title="' + esc(r.bestListCatalog || '') + '">' + (r.bestListRank ? '#' + esc(r.bestListRank) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="num" title="' + esc(r.latestSearchQuery || '') + '">' + (r.latestSearchRank ? '#' + esc(r.latestSearchRank) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="num">' + (r.bsrRank ? esc(fmtNum(r.bsrRank)) : '<span class="muted">—</span>') + '</td>' +
         '<td class="num">' + (r.price !== null && r.price !== undefined ? fmtNum(r.price) + ' <span class="muted">' + esc(r.currency || '') + '</span>' : '<span class="muted">—</span>') + '</td>' +
         '<td>' + esc(r.sellerName || '—') + '</td>' +
         '<td>' + esc(r.shipperName || '—') + (r.sellerIsShipper === 'نعم' ? ' <span class="muted">(هو البائع)</span>' : '') + '</td>' +
@@ -470,6 +475,7 @@
     };
     $('search').oninput = () => { state.page = 1; applyView(); };
     $('filter-status').onchange = () => { state.page = 1; applyView(); };
+    $('filter-rank').onchange = () => { state.page = 1; applyView(); };
     $('filter-shipper-type').onchange = () => { state.page = 1; applyView(); };
     $('filter-shipper-name').oninput = () => { state.page = 1; applyView(); };
     $('chk-all').onchange = (e) => {
@@ -510,7 +516,7 @@
       const s = state.settings;
       form.minDelay.value = s.minDelayMs / 1000; form.maxDelay.value = s.maxDelayMs / 1000; form.maxPages.value = s.maxPagesPerRun;
       form.depth.value = s.maxCategoryDepth; form.language.value = s.language || '';
-      form.autoCapture.checked = !!s.autoCapture; form.sellerProfile.checked = s.fetchSellerProfile !== false; form.sellerAddrConfirmed.checked = !!s.sellerAddressAsConfirmed; form.competitors.checked = !!s.fetchCompetitorOffers; form.importAsConfirmed.checked = !!s.importFeesAsConfirmed;
+      form.rankMix.value = s.rankMixEvery; form.autoCapture.checked = !!s.autoCapture; form.sellerProfile.checked = s.fetchSellerProfile !== false; form.sellerAddrConfirmed.checked = !!s.sellerAddressAsConfirmed; form.competitors.checked = !!s.fetchCompetitorOffers; form.importAsConfirmed.checked = !!s.importFeesAsConfirmed;
       form.intlTransit.value = s.intlMinTransitDays; form.searchMin.value = s.searchMinDelayMs / 1000; form.searchMax.value = s.searchMaxDelayMs / 1000; form.skipFresh.value = s.skipFreshHours; form.intlHandling.value = s.intlMinHandlingDays; form.intlDelivery.value = s.intlMinDeliveryDays;
       form.seeds.value = (s.extraSeeds || []).join('\n'); $('settings-dialog').showModal();
     };
@@ -520,7 +526,7 @@
       await saveSettings(Object.assign({}, state.settings, {
         minDelayMs: minD * 1000, maxDelayMs: maxD * 1000, maxPagesPerRun: Math.max(1, parseInt(form.maxPages.value, 10) || 300),
         maxCategoryDepth: Math.min(4, Math.max(0, parseInt(form.depth.value, 10) || 0)), language: form.language.value,
-        autoCapture: form.autoCapture.checked, fetchSellerProfile: form.sellerProfile.checked, sellerAddressAsConfirmed: form.sellerAddrConfirmed.checked, fetchCompetitorOffers: form.competitors.checked, importFeesAsConfirmed: form.importAsConfirmed.checked, extraSeeds: seeds,
+        rankMixEvery: Math.max(0, Math.min(20, parseInt(form.rankMix.value, 10) || 0)), autoCapture: form.autoCapture.checked, fetchSellerProfile: form.sellerProfile.checked, sellerAddressAsConfirmed: form.sellerAddrConfirmed.checked, fetchCompetitorOffers: form.competitors.checked, importFeesAsConfirmed: form.importAsConfirmed.checked, extraSeeds: seeds,
         intlMinTransitDays: Math.max(1, parseInt(form.intlTransit.value, 10) || 4),
         searchMinDelayMs: Math.max(500, (parseFloat(form.searchMin.value) || 1.5) * 1000), searchMaxDelayMs: Math.max(500, (parseFloat(form.searchMax.value) || 3) * 1000),
         skipFreshHours: Math.max(0, parseInt(form.skipFresh.value, 10) || 0),

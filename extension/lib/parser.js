@@ -559,6 +559,7 @@
   function parseListingDocument(doc, baseUrl) {
     const base = baseUrl || BASE;
     const items = new Map();
+    let position = 0;   // ترتيب الظهور في الصفحة (بدون الإعلانات)
     doc.querySelectorAll('[data-asin]').forEach(el => {
       const asin = (el.getAttribute('data-asin') || '').toUpperCase();
       if (!/^[A-Z0-9]{10}$/.test(asin) || items.has(asin)) return;
@@ -578,8 +579,15 @@
         const c = parseCount(t.replace(/[()]/g, ''));
         if (c !== null) { reviewCount = c; break; }
       }
+      // الترتيب: شارة الترتيب في قوائم الأكثر مبيعًا (#1، #2…) إن وُجدت، وإلا موضع الظهور في الصفحة. الإعلانات بلا ترتيب.
+      const sponsored = !!(el.classList.contains('AdHolder') || el.querySelector('.puis-sponsored-label-text, [aria-label*="Sponsored" i], [aria-label*="إعلان"], .s-sponsored-label-info-icon') || /^(?:sponsored|ممول|إعلان)$/i.test(T(el.querySelector('.puis-label-popover-default, .s-label-popover-default')) || ''));
+      const badge = el.querySelector('.zg-bdg-text, .zg-badge-text, [class*="zg-bdg"], [class*="zg-badge"]');
+      const bm = badge ? T(badge).match(/(\d{1,4})/) : null;
+      if (!sponsored) position++;
+      const rank = sponsored ? null : bm ? parseInt(bm[1], 10) : position;
       items.set(asin, {
         asin, url: canonicalUrl(asin, base),
+        rank, rankBasis: sponsored ? null : bm ? 'badge' : 'position', position: sponsored ? null : position, sponsored,
         title: T(titleEl) || (img && normalizeText(img.getAttribute('alt'))) || null,
         price: price.amount, currency: price.currency,
         rating: ratingEl ? parseRating(T(ratingEl)) : null,
@@ -596,7 +604,7 @@
       const asin = extractAsin(href);
       if (asin && !items.has(asin) && !/\/(?:product-reviews|customerReviews)/.test(href)) {
         productLinks.add(asin);
-        items.set(asin, { asin, url: canonicalUrl(asin, base), title: null, price: null, currency: null,
+        items.set(asin, { asin, url: canonicalUrl(asin, base), rank: null, rankBasis: null, position: null, sponsored: false, title: null, price: null, currency: null,
           rating: null, reviewCount: null, imageUrl: null });
       }
       const u = absUrl(href, base, false);

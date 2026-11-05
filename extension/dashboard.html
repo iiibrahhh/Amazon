@@ -69,6 +69,14 @@
       <option value="amazon_global">الشاحن: أمازون العالمي</option>
       <option value="none">الشاحن غير معروف</option>
     </select>
+    <select id="filter-rank" aria-label="تصفية حسب الترتيب">
+      <option value="all">كل الترتيبات</option>
+      <option value="10">ترتيب القسم/البحث ≤ 10</option>
+      <option value="25">≤ 25</option>
+      <option value="50">≤ 50</option>
+      <option value="100">≤ 100</option>
+      <option value="none">بلا ترتيب معروف</option>
+    </select>
     <input id="filter-shipper-name" type="search" class="shipper-name" placeholder="اسم الشاحن: كلمة أو أكثر مفصولة بفاصلة، و«-كلمة» للاستبعاد" aria-label="تصفية اسم الشاحن">
     <span class="spacer"></span>
     <button id="btn-csv">تصدير CSV</button>
@@ -90,6 +98,9 @@
             <th data-sort="title" class="sortable">اسم المنتج</th>
             <th data-sort="asin" class="sortable">ASIN</th>
             <th data-sort="catalog" class="sortable">الكتالوج</th>
+            <th data-sort="listrank" class="sortable num" title="ترتيب المنتج في قائمة الأكثر مبيعًا لقسمه (1 = الأعلى)">ترتيب القسم</th>
+            <th data-sort="searchrank" class="sortable num" title="ترتيبه في نتائج آخر بحث (بلا إعلانات)">ترتيب البحث</th>
+            <th data-sort="bsr" class="sortable num" title="ترتيب أفضل المبيعات من صفحة المنتج">BSR</th>
             <th data-sort="price" class="sortable num">السعر</th>
             <th>اسم البائع<br><small>يباع بواسطة</small></th>
             <th>اسم الشاحن<br><small>يشحن بواسطة</small></th>
@@ -143,6 +154,7 @@
       <label class="inline"><input type="checkbox" name="importAsConfirmed"> اعتبار «رسوم الاستيراد» دليلًا مؤكدًا (الافتراضي: مرجح فقط)</label>
       <label>عتبة مدة التجهيز لاعتبار الشحن دوليًا «مرجحًا» (أيام، مع شاحن = بائع)<input type="number" name="intlHandling" min="1" max="60"></label>
       <label>عتبة فارق النقل لاعتبار الشحن دوليًا «مرجحًا» (أيام: أقرب توصيل − أطول تجهيز، مع شاحن = بائع)<input type="number" name="intlTransit" min="1" max="60"></label>
+      <label>في الجمع: كل كم منتج يُخصَّص واحد لمنتجات الاكتشاف (بلا ترتيب أو إصدارات جديدة؛ 0 = ترتيب صرف)<input type="number" name="rankMix" min="0" max="20"></label>
       <label>أقل تأخير بين طلبات البحث (ثوانٍ)<input type="number" name="searchMin" min="0.5" step="0.5"></label>
       <label>أعلى تأخير بين طلبات البحث (ثوانٍ)<input type="number" name="searchMax" min="0.5" step="0.5"></label>
       <label>تخطّي المنتجات المفحوصة خلال آخر (ساعات؛ 0 = أعد فحصها دائمًا)<input type="number" name="skipFresh" min="0" max="168"></label>

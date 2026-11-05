@@ -12,6 +12,15 @@
 
   // صفحات المنتجات أولًا: كل ما اكتُشف يُفحص قبل التوسع في قوائم/فئات جديدة (وإلا استُهلك حد الصفحات في القوائم وحدها)
   const PRIORITY = { product: 1, listing: 2 };
+  function listKindOf(url) {
+    const p = (function () { try { return new URL(url).pathname.toLowerCase(); } catch (e) { return String(url).toLowerCase(); } })();
+    if (/\/(?:gp\/)?(?:bestsellers|zgbs)\b|\/best-sellers/.test(p)) return 'bestsellers';
+    if (/new-releases|\/gp\/new/.test(p)) return 'new-releases';
+    if (/movers-and-shakers/.test(p)) return 'movers';
+    if (/most-wished-for/.test(p)) return 'most-wished';
+    return 'other';
+  }
+  const listKey0 = (url) => { try { return new URL(url).pathname.replace(/\/ref=.*$/, ''); } catch (e) { return String(url); } };
 
   function withLanguage(url, settings) {
     if (!settings.language) return url;
@@ -43,7 +52,12 @@
   let seqCounter = 0;
   async function enqueue(db, item) {
     const old = await db.get('queue', item.url);
-    if (old) return false; // لا نكرر العنصر نفسه
+    if (old) {   // لا نكرر العنصر نفسه، لكن ترتيبًا أفضل (رقم أصغر) يُرقّي عنصرًا معلّقًا
+      if (old.status === 'pending' && item.rank !== null && item.rank !== undefined && (old.rank === null || old.rank === undefined || item.rank < old.rank)) {
+        await db.put('queue', Object.assign({}, old, { rank: item.rank, rankKind: item.rankKind || null, catalog: old.catalog || item.catalog || null }));
+      }
+      return false;
+    }
     // seq يحفظ ترتيب الإضافة داخل الميلي‌ثانية نفسها (وإلا رُتّبت البذور أبجديًا بدل ترتيبها الأصلي)
     await db.put('queue', Object.assign({ status: 'pending', attempts: 0, depth: 0, addedAt: new Date().toISOString(), seq: ++seqCounter }, item));
     return true;
@@ -75,14 +89,26 @@
     return n;
   }
 
-  async function nextPending(db, settings) {
+  async function nextPending(db, settings, n) {
     let rows = (await db.byIndex('queue', 'status', 'pending'));
     const scope = scopeOf(settings || {});
     if (scope.length) {   // ضمن النطاق فقط: عناصر الكتالوجات المحددة، أو عناصر بلا كتالوج وليست بذور عامة
       const names = new Set(scope.map(c => c.name));
-      rows = rows.filter(it => it.catalog ? names.has(it.catalog) : it.origin !== 'seed');
+      rows = rows.filter(it => (it.origin && String(it.origin).startsWith('search:')) || (it.catalog ? names.has(it.catalog) : it.origin !== 'seed'));
     }
     if (!rows.length) return null;
+    // صفحات المنتجات: الأعلى ترتيبًا أولًا (رقم 1 في كل قسم قبل رقم 2 في أي قسم)، مع تخصيص كل N-ية (rankMixEvery، افتراضيًا 4)
+    // لمنتجات «الاكتشاف»: بلا ترتيب معروف، أو من قوائم الإصدارات الجديدة، كي لا تُهمَل.
+    const cmp = (a, b) => (a.depth - b.depth) || (a.addedAt < b.addedAt ? -1 : a.addedAt > b.addedAt ? 1 : ((a.seq || 0) - (b.seq || 0)) || (a.url < b.url ? -1 : 1));
+    const prods = rows.filter(r => r.type === 'product');
+    if (prods.length) {
+      const isRanked = (r) => r.rank !== null && r.rank !== undefined && r.rankKind !== 'new-releases';
+      const ranked = prods.filter(isRanked).sort((a, b) => (a.rank - b.rank) || cmp(a, b));
+      const disc = prods.filter(r => !isRanked(r)).sort(cmp);
+      const every = settings && settings.rankMixEvery !== undefined ? Math.max(0, parseInt(settings.rankMixEvery, 10) || 0) : 4;
+      const turn = every > 0 && ranked.length && disc.length && ((n || 0) % every === every - 1);
+      return turn ? disc[0] : (ranked[0] || disc[0]);
+    }
     rows.sort((a, b) => (PRIORITY[a.type] - PRIORITY[b.type]) || (a.depth - b.depth) || (a.addedAt < b.addedAt ? -1 : a.addedAt > b.addedAt ? 1 : ((a.seq || 0) - (b.seq || 0)) || (a.url < b.url ? -1 : 1)));
     // نفضّل صفحات المنتجات غير المفحوصة أولًا لتحقيق هدف الأداة، لكن نُبقي القوائم تتقدم تدريجيًا
     return rows[0];
@@ -111,11 +137,15 @@
 
     async function handleListing(item, doc) {
       const res = parser.parseListingDocument(doc, settings.baseUrl);
-      const created = await ingest.ingestListingItems(db, res.items, { source: 'amazon.sa:listing-page', catalog: item.catalog || null });
+      // ترتيب القائمة: لقوائم الأكثر مبيعًا/الجديدة/الأكثر ارتفاعًا/الأكثر طلبًا فقط؛ الصفحة الثانية تكمل الترقيم (50 منتجًا في الصفحة) إن لم تحمل شارات ترتيب
+      const kind = listKindOf(item.url), pageOffset = ((item.page || 1) - 1) * 50;
+      const ranked = res.items.map(it => Object.assign({}, it, { rank: it.rank !== null && it.rank !== undefined && kind !== 'other' ? (it.rankBasis === 'badge' ? it.rank : it.rank + pageOffset) : null }));
+      const listKey = item.catalog || listKey0(item.url);
+      const created = await ingest.ingestListingItems(db, ranked, { source: 'amazon.sa:listing-page', catalog: item.catalog || null, listKind: kind, listKey });
       stats.newProducts += created;
       stats.listings++;
-      for (const it of res.items) {
-        await enqueue(db, { url: it.url, type: 'product', asin: it.asin, depth: item.depth, origin: item.url, catalog: item.catalog || null });
+      for (const it of ranked) {
+        await enqueue(db, { url: it.url, type: 'product', asin: it.asin, depth: item.depth, origin: item.url, catalog: item.catalog || null, rank: it.rank, rankKind: it.rank ? kind : null });
       }
       if (res.nextPage && item.depth < settings.maxCategoryDepth + 3 && (item.page || 1) < 3) {
         await enqueue(db, { url: res.nextPage, type: 'listing', depth: item.depth, page: (item.page || 1) + 1, origin: item.url, catalog: item.catalog || null });
@@ -190,7 +220,7 @@
       emit();
       while (!stopRequested) {
         if (n >= settings.maxPagesPerRun) { stats.stoppedBecause = 'max_pages'; break; }
-        const item = await nextPending(db, settings);
+        const item = await nextPending(db, settings, stats.processed);
         if (!item) { stats.stoppedBecause = 'queue_empty'; break; }
         const r = await processOne(item);
         n++;
@@ -230,5 +260,5 @@
     return out;
   }
 
-  return { discoverCatalogs, seedItems, inScope, createRunner, seedQueue, enqueue, enqueueRefresh, queueStats, seedUrls, resetInFlight, nextPending, withLanguage };
+  return { listKindOf, discoverCatalogs, seedItems, inScope, createRunner, seedQueue, enqueue, enqueueRefresh, queueStats, seedUrls, resetInFlight, nextPending, withLanguage };
 });

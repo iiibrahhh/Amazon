@@ -49,3 +49,27 @@ test('النسخ الاحتياطي لا يحمل مفتاح AliExpress ولا �
   const d = await backup.exportAll(db, { aliAppKey: 'K', aliAppSecret: 'S', aliTrackingId: 'T', vatPct: 15 }, '1.2.0');
   assert.deepEqual(d.settings, { vatPct: 15 });
 });
+
+test('pickBest: يفضّل أعلى تقاطع كلمات ثم الطلبات، ويتجاهل بلا سعر، ويعيد null للفارغ', () => {
+  const list = [
+    { title: 'Random Gadget', price: 5, url: 'u1', orders: 99999 },
+    { title: 'Mini USB Fan Portable', price: 12, url: 'u2', orders: 10 },
+    { title: 'Mini USB Fan Portable', price: null, url: 'u3', orders: 1e6 }
+  ];
+  const b = sourcing.pickBest('Mini USB Fan', list);
+  assert.equal(b.url, 'u2'); assert.equal(b.match, 100);
+  assert.equal(sourcing.pickBest('x', []), null);
+});
+
+test('مورد مقترح: يُحفظ دون مس المعتمد، ويظهر في التصدير كـ«مقترح»، والمعتمد يتقدم', async () => {
+  const { fixtureDoc } = require('./helpers');
+  const parser = require('../extension/lib/parser.js'), ingest = require('../extension/lib/ingest.js'), exporter = require('../extension/lib/export.js');
+  const db = await newDb();
+  await ingest.ingestProduct(db, parser.parseProductDocument(fixtureDoc('product_intl_confirmed.html'), 'https://www.amazon.sa/dp/B0TEST0001'), { now: '2026-10-01T00:00:00.000Z' });
+  await ingest.setSupplierSuggestion(db, 'B0TEST0001', { platform: 'AliExpress', title: 'Fan', url: 'https://www.aliexpress.com/item/9.html', price: 12.5 });
+  let r = exporter.buildRows(await db.all('products'), await db.all('offers'), [], { settings: {} })[0];
+  assert.equal(r.supplierState, 'مقترح'); assert.equal(r.supplierPrice, 12.5);
+  await ingest.setMerchantData(db, 'B0TEST0001', { supplierUrl: 'https://www.alibaba.com/x', supplierName: 'Mine' });
+  r = exporter.buildRows(await db.all('products'), await db.all('offers'), [], { settings: {} })[0];
+  assert.equal(r.supplierState, 'معتمد'); assert.equal(r.supplierName, 'Mine');
+});

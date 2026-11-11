@@ -59,6 +59,17 @@
     })).filter(c => c.id || c.url);
   }
 
+  const toks = (s) => new Set(String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 2));
+  /** أقرب نتيجة لعبارة البحث: تقاطع الكلمات اللاتينية ثم عدد الطلبات. يعيد null إن لم توجد نتيجة بسعر. التطابق تقدير وليس يقينًا. */
+  function pickBest(query, list) {
+    const q = toks(query); let best = null, bs = -1;
+    (list || []).filter(c => c.price !== null && c.url).forEach(c => {
+      const t = toks(c.title); let hit = 0; q.forEach(w => { if (t.has(w)) hit++; });
+      const sc = (q.size ? hit / q.size : 0) * 1000 + Math.log10((c.orders || 0) + 1);
+      if (sc > bs) { bs = sc; best = Object.assign({}, c, { match: q.size ? Math.round(hit / q.size * 100) : 0 }); }
+    });
+    return best;
+  }
   async function searchAliExpress(cfg, query, opts) {
     opts = opts || {};
     const url = await buildRequest(cfg, query, opts);
@@ -69,5 +80,5 @@
     let j; try { j = await r.json(); } catch (e) { throw new Error('رد AliExpress ليس JSON صالحًا.'); }
     return parseResponse(j);
   }
-  return { sign, buildRequest, parseResponse, searchAliExpress, ENDPOINT, METHOD, ORIGIN_PATTERN };
+  return { pickBest, sign, buildRequest, parseResponse, searchAliExpress, ENDPOINT, METHOD, ORIGIN_PATTERN };
 });

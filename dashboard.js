@@ -132,7 +132,7 @@
         '<td>' + esc(r.shippingOrigin || '—') + '</td>' +
         '<td>' + badge(r.shippingStatus, unscanned, !!(r.statusSource && /^يدوي/.test(r.statusSource))) + '</td>' +
         '<td class="num opp">' + (r.opportunityScore !== null && r.opportunityScore !== undefined ? esc(r.opportunityScore) : '<span class="muted">—</span>') + '</td>' +
-        '<td class="supplier">' + (r.supplierUrl ? '<a href="' + esc(r.supplierUrl) + '" target="_blank" rel="noopener noreferrer" title="' + esc(r.supplierName || '') + '">' + esc(merchant.supplierPlatform(r.supplierUrl) || '') + (r.supplierName && r.supplierName !== merchant.supplierPlatform(r.supplierUrl) ? ': ' + esc(r.supplierName.slice(0, 28)) : '') + '</a>' : (r.supplierName ? esc(r.supplierName) : '<span class="muted">—</span>')) + '</td>' +
+        '<td class="supplier">' + (r.supplierUrl ? (r.supplierState === 'مقترح' ? '<span class="muted">مقترح · </span>' : '') + '<a href="' + esc(r.supplierUrl) + '" target="_blank" rel="noopener noreferrer" title="' + esc(r.supplierName || '') + '">' + esc(merchant.supplierPlatform(r.supplierUrl) || '') + (r.supplierName && r.supplierName !== merchant.supplierPlatform(r.supplierUrl) ? ': ' + esc(r.supplierName.replace(/^[^:]+: /, '').slice(0, 28)) : '') + '</a>' + (r.supplierPrice !== null && r.supplierPrice !== undefined ? '<br><b>' + esc(fmtNum(r.supplierPrice)) + '</b>' : '') : (r.supplierName ? esc(r.supplierName) : '<span class="muted">—</span>')) + '</td>' +
         '<td>' + (r.merchantStatus ? '<span class="badge watch-' + esc(r.merchantStatus) + '">' + esc(r.merchantStatusAr) + '</span>' : '<span class="muted">—</span>') + '</td>' +
         '<td class="num opp">' + (r.profitPerUnit !== null && r.profitPerUnit !== undefined ? '<span class="' + (r.profitPerUnit >= 0 ? 'mv-up' : 'mv-down') + '">' + esc(fmtNum(r.profitPerUnit)) + '</span>' : '<span class="muted">—</span>') + '</td>' +
         '<td class="num">' + (r.shippingCost === 'مجاني' ? 'مجاني' : (r.shippingCost !== null && r.shippingCost !== undefined ? fmtNum(r.shippingCost) : '<span class="muted">—</span>')) + '</td>' +
@@ -235,8 +235,47 @@
       '<div class="grid2">' + MT_FIELDS.map(([k, t]) => '<label>' + esc(t) + '<input type="number" min="0" step="0.01" id="mt-' + k + '" value="' + esc(m[k] !== undefined ? m[k] : '') + '"></label>').join('') + '</div>' +
       '<div id="mt-profit">' + profitBoxHtml(price, m) + '</div>' +
       '<div class="scope-actions"><button id="mt-save" class="primary">حفظ</button><button id="mt-clear">مسح بياناتي لهذا المنتج</button></div>' +
+      suggestionHtml(prod) +
       '<div class="ali"><button id="mt-ali">اجلب مصادر مقترحة من AliExpress</button> <span class="muted">يحتاج مفتاحك في الإعدادات</span><div id="mt-ali-out"></div></div>' +
       (links.length ? '<p class="src-links"><b>ابحث عن المصدر:</b> ' + links.map(l => '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">' + esc(l.name) + '</a>').join('') + '<br><span class="muted">البحث بـ«' + esc(merchant.sourcingQuery(prod)) + '». روابط بحث فقط، ويتحقق التاجر بنفسه من تطابق المنتج.</span></p>' : '') + '</div>';
+  }
+  function suggestionHtml(prod) {
+    const s = prod.supplierSuggestion; if (!s || !s.url) return '';
+    return '<div class="ali-item"><b>مورد مقترح تلقائيًا</b> (تطابق تقديري ' + esc(String(s.match === undefined ? '؟' : s.match)) + '%): <a href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer">' + esc((s.title || '').slice(0, 80)) + '</a> · ' + esc(fmtNum(s.price)) + ' ' + esc(s.currency || '') +
+      ' <button data-use-supplier="' + esc(s.url) + '" data-supplier-name="' + esc((s.title || '').slice(0, 60)) + '" data-use-cost="' + esc(String(s.price)) + '">اعتمد كمورد وتكلفة</button><br><span class="muted">قد لا يطابق منتجك؛ تأكد منه قبل الاعتماد. لا يشمل الشحن إلى المملكة.</span></div>';
+  }
+  async function autoSuppliers() {
+    const btn = $('btn-suppliers');
+    if (state.supBusy) { state.supStop = true; btn.textContent = 'جارٍ الإيقاف…'; return; }
+    const s = state.settings;
+    if (!s.aliAppKey || !s.aliAppSecret) return setStatus('أدخل App Key وApp Secret لـAliExpress في «الإعدادات» أولًا.', true);
+    const byAsin = new Map(); (state.selected.size ? state.rows.filter(r => state.selected.has(rowKey(r))) : state.view.filter(r => !r.supplierUrl)).forEach(r => byAsin.set(r._asin, r));
+    const asins = Array.from(byAsin.keys()).slice(0, 50);
+    if (!asins.length) return setStatus('لا منتجات بلا مورد في العرض الحالي. حدّد منتجات أو غيّر التصفية.', true);
+    if (!confirm('سيُبحث في AliExpress عن مورد مقترح لـ' + asins.length + ' منتجًا (بحد أقصى 50 في المرة)، بطلب كل ثانية تقريبًا. المتابعة؟')) return;
+    try {
+      if (self.chrome && chrome.permissions) {
+        const has = await chrome.permissions.contains({ origins: [sourcing.ORIGIN_PATTERN] });
+        if (!has && !(await chrome.permissions.request({ origins: [sourcing.ORIGIN_PATTERN] }))) return setStatus('لم تُمنح صلاحية الاتصال بـAliExpress.', true);
+      }
+    } catch (e) { return setStatus(e.message, true); }
+    state.supBusy = true; state.supStop = false; btn.textContent = 'إيقاف الجلب';
+    let found = 0, none = 0, skipped = 0, err = null, i = 0;
+    for (const asin of asins) {
+      if (state.supStop) break;
+      i++; setStatus('جلب الموردين… ' + i + ' من ' + asins.length + ' (وُجد ' + found + ')');
+      const prod = state.products.find(p => p.asin === asin) || {};
+      const q = merchant.sourcingQuery(prod);
+      if (!/[A-Za-z]{2}/.test(q)) { skipped++; continue; }
+      try {
+        const best = sourcing.pickBest(q, await sourcing.searchAliExpress(s, q));
+        if (best) { await ingest.setSupplierSuggestion(state.db, asin, { platform: 'AliExpress', title: best.title, url: best.url, price: best.price, currency: best.currency, rating: best.rating, orders: best.orders, match: best.match, query: q }); found++; } else none++;
+      } catch (e) { err = e.message; break; }
+      await new Promise(r => setTimeout(r, 1100));
+    }
+    state.supBusy = false; btn.textContent = 'جلب الموردين تلقائيًا';
+    await reload();
+    setStatus('انتهى جلب الموردين: وُجد ' + found + '، بلا نتيجة ' + none + '، تُخطي ' + skipped + ' (عنوان عربي بلا موديل/كلمات لاتينية للبحث)' + (err ? '. توقف بسبب: ' + err : '') + '. المقترح يحتاج مراجعتك قبل الاعتماد.', !!err);
   }
   async function fetchAli() {
     const out = $('mt-ali-out'), row = state.rows.find(x => rowKey(x) === state.active), prod = state.products.find(p => row && p.asin === row._asin) || {};
@@ -517,6 +556,7 @@
     $('btn-scan-current').onclick = scanCurrent;
     $('btn-diagnose').onclick = diagnose;
     $('btn-calibrate').onclick = showCalibration;
+    $('btn-suppliers').onclick = autoSuppliers;
     $('btn-preset').onclick = () => {
       state.preset = !state.preset; $('btn-preset').classList.toggle('on', state.preset);
       if (state.preset) state.sort = { key: 'opp', dir: 'desc' };

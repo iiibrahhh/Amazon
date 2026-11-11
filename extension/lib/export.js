@@ -30,6 +30,8 @@
     { key: 'shipperTypeAr', label: 'نوع الشاحن', type: 'text', w: 16 },
     { key: 'merchantStatusAr', label: 'حالة المتابعة', type: 'text', w: 14 },
     { key: 'supplierName', label: 'المورد', type: 'text', w: 26 },
+    { key: 'supplierState', label: 'حالة المورد', type: 'text', w: 12 },
+    { key: 'supplierPrice', label: 'سعر المورد', type: 'number', w: 12 },
     { key: 'supplierUrl', label: 'رابط المورد', type: 'text', w: 34 },
     { key: 'merchantNote', label: 'ملاحظتي', type: 'text', w: 30 },
     { key: 'merchantCost', label: 'تكلفة الشراء (ريال)', type: 'number', w: 13 },
@@ -83,6 +85,13 @@
   const rangeOf = (a, b) => (a === null || a === undefined) ? null : rules.rangeText(a, b);
 
   /** صف واحد لكل عرض؛ المنتج بلا عروض (اكتُشف من قائمة فقط) يظهر بصف واحد. */
+  /** المورد المعتمد (يدوي) يتقدم على المقترح تلقائيًا. */
+  function supplierOf(p) {
+    const m = p.merchant || {}, s = p.supplierSuggestion;
+    if (m.supplierUrl || m.supplierName) return { name: m.supplierName || merchantLib.supplierPlatform(m.supplierUrl), url: m.supplierUrl || null, state: 'معتمد', price: null };
+    if (s && s.url) return { name: (s.platform || 'AliExpress') + (s.title ? ': ' + s.title.slice(0, 40) : ''), url: s.url, state: 'مقترح', price: s.price !== undefined ? s.price : null };
+    return { name: null, url: null, state: null, price: null };
+  }
   function buildRows(products, offers, evidence, opts) {
     const profitDefaults = (function (s) { s = s || {}; return { customsPct: s.customsPct, referralFeePct: s.referralFeePct, vatPct: s.vatPct, vatRecoverable: s.vatRecoverable }; })(opts && opts.settings);
     Object.keys(profitDefaults).forEach(k => { if (profitDefaults[k] === undefined) delete profitDefaults[k]; });
@@ -90,6 +99,7 @@
     const evByOffer = new Map(); (evidence || []).forEach(e => { if (!evByOffer.has(e.offerKey)) evByOffer.set(e.offerKey, []); evByOffer.get(e.offerKey).push(e); });
     const rows = [];
     for (const p of products) {
+      const sup = supplierOf(p);
       const list = byAsin.get(p.asin) || [null];
       for (const o of list) {
         const ev = o ? (evByOffer.get(o.offerKey) || []) : [];
@@ -116,7 +126,7 @@
           shipperTypeAr: o && o.shipperType ? SHIPPER_TYPE_AR[o.shipperType] || o.shipperType : null,
           merchant: p.merchant || null, merchantStatus: p.merchant && p.merchant.status || null,
           merchantStatusAr: p.merchant && p.merchant.status ? merchantLib.WATCH_STATUS[p.merchant.status] : null,
-          supplierName: p.merchant && (p.merchant.supplierName || (p.merchant.supplierUrl ? merchantLib.supplierPlatform(p.merchant.supplierUrl) : null)) || null, supplierUrl: p.merchant && p.merchant.supplierUrl || null,
+          supplierName: sup.name, supplierUrl: sup.url, supplierState: sup.state, supplierPrice: sup.price,
           merchantNote: p.merchant && p.merchant.note || null, merchantCost: p.merchant && p.merchant.cost !== undefined ? p.merchant.cost : null,
           profit: pr, profitPerUnit: pr && pr.ok ? pr.profit : null, profitMarginPct: pr && pr.ok ? pr.marginPct : null, profitRoiPct: pr && pr.ok ? pr.roiPct : null,
           bestListRank: p.bestListRank !== undefined ? p.bestListRank : null, bestListCatalog: p.bestListCatalog || null,

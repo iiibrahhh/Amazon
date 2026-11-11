@@ -221,6 +221,13 @@
     }
     return n;
   }
+  /** مورد مقترح تلقائيًا (لا يمس المورد المعتمد من التاجر). null يحذفه. */
+  async function setSupplierSuggestion(db, asin, s) {
+    const p = await db.get('products', asin);
+    if (!p) throw new Error('المنتج غير موجود: ' + asin);
+    if (!s) delete p.supplierSuggestion; else p.supplierSuggestion = Object.assign({}, s, { fetchedAt: new Date().toISOString() });
+    await db.put('products', p);
+  }
   async function setMerchantData(db, asin, clean) {
     const p = await db.get('products', asin);
     if (!p) throw new Error('المنتج غير موجود: ' + asin);
@@ -290,6 +297,6 @@
     return o;
   }
 
-  return { scrubDeliveryLocations, setMerchantData, effectiveStatus, setUserVerdict, clearUserVerdict, ingestProduct, ingestCompetitorOffers, ingestListingItems, deleteProducts, startScan, finishScan,
+  return { setSupplierSuggestion, scrubDeliveryLocations, setMerchantData, effectiveStatus, setUserVerdict, clearUserVerdict, ingestProduct, ingestCompetitorOffers, ingestListingItems, deleteProducts, startScan, finishScan,
     log, mergeDefined, offerKeyOf, bestStatus };
 });

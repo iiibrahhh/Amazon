@@ -243,7 +243,7 @@
   function supplierSearchLinks(r) {
     const prod = state.products.find(p => p.asin === r._asin); const l = prod ? merchant.sourcingLinks(prod) : [];
     if (!l.length) return '<span class="muted">—</span>';
-    return l.slice(0, 2).map(x => '<a class="muted" href="' + esc(x.url) + '" target="_blank" rel="noopener noreferrer" title="بحث عن مصدر لهذا المنتج في ' + esc(x.name) + '">' + esc(x.name) + '</a>').join('<br>');
+    const img = l.find(x => x.name === 'بحث بالصورة'); return l.filter(x => x.name === 'AliExpress' || x.name === 'Alibaba').concat(img ? [img] : []).map(x => '<a class="muted" href="' + esc(x.url) + '" target="_blank" rel="noopener noreferrer" title="بحث عن مصدر لهذا المنتج في ' + esc(x.name) + '">' + esc(x.name) + '</a>').join('<br>');
   }
   function suggestionHtml(prod) {
     const s = prod.supplierSuggestion; if (!s || !s.url) return '';

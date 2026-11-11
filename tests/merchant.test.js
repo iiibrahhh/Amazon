@@ -109,3 +109,11 @@ test('المورد: يُحفظ بمنصته، ويرفض الروابط غير h
   const rows = exporter.buildRows(await db.all('products'), await db.all('offers'), [], { settings: {} });
   assert.equal(rows[0].supplierName, 'Foo Store'); assert.match(rows[0].supplierUrl, /aliexpress/);
 });
+
+test('بحث بالصورة: رابط Lens بصورة المنتج فقط إن كانت http(s)', () => {
+  const l = merchant.sourcingLinks({ title: 'Mini Fan', imageUrl: 'https://m.media-amazon.com/images/I/a b.jpg' });
+  const img = l.find(x => x.name === 'بحث بالصورة');
+  assert.ok(img.url.startsWith('https://lens.google.com/uploadbyurl?url=https%3A%2F%2Fm.media-amazon.com'));
+  assert.equal(merchant.imageSearchLink({ imageUrl: 'javascript:1' }), null);
+  assert.equal(merchant.sourcingLinks({ title: 'Mini Fan' }).some(x => x.name === 'بحث بالصورة'), false);
+});

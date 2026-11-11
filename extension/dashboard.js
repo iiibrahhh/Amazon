@@ -230,6 +230,7 @@
     const links = merchant.sourcingLinks(prod);
     return '<h3>أدوات التاجر</h3><div class="mt" data-asin="' + esc(r._asin) + '">' +
       '<label>حالة المتابعة <select id="mt-status"><option value="">— بلا —</option>' + Object.entries(merchant.WATCH_STATUS).map(([k, v]) => opt(k, v)).join('') + '</select></label>' +
+      '<label>عبارة البحث عن المصدر (بالإنجليزية) <input type="text" id="mt-searchQuery" dir="ltr" maxlength="120" placeholder="مثال: 27 inch privacy screen filter" value="' + esc(m.searchQuery || '') + '"></label><p class="muted">إن تُركت فارغة تُستخرج من الماركة والموديل أو كلمات العنوان اللاتينية. العناوين العربية بلا موديل لا تُبحث نصيًا، فاكتب العبارة بنفسك ثم احفظ.</p>' +
       '<label>ملاحظتي <textarea id="mt-note" rows="2" maxlength="500">' + esc(m.note || '') + '</textarea></label>' +
       '<div class="grid2"><label>اسم المورد<input type="text" id="mt-supplierName" maxlength="120" value="' + esc(m.supplierName || '') + '"></label><label>رابط المورد (AliExpress/Alibaba…)<input type="url" id="mt-supplierUrl" dir="ltr" value="' + esc(m.supplierUrl || '') + '"></label></div>' +
       '<div class="grid2">' + MT_FIELDS.map(([k, t]) => '<label>' + esc(t) + '<input type="number" min="0" step="0.01" id="mt-' + k + '" value="' + esc(m[k] !== undefined ? m[k] : '') + '"></label>').join('') + '</div>' +
@@ -242,7 +243,8 @@
   /* بلا مورد: روابط بحث جاهزة (AliExpress / Alibaba) بدل خلية فارغة */
   function supplierSearchLinks(r) {
     const prod = state.products.find(p => p.asin === r._asin); const l = prod ? merchant.sourcingLinks(prod) : [];
-    if (!l.length) return '<span class="muted">—</span>';
+    if (!l.length) return '<span class="muted" title="العنوان عربي بلا موديل أو صورة: لا بحث ممكن. اكتب عبارة بحث إنجليزية في التفاصيل.">عبارة؟</span>';
+    if (!l.some(x => x.name === 'AliExpress')) return '<span class="muted" title="العنوان عربي بلا موديل أو كلمات لاتينية، فلا بحث نصي موثوق. اكتب عبارة بحث إنجليزية في التفاصيل.">عبارة؟</span><br>' + l.map(x => '<a class="muted" href="' + esc(x.url) + '" target="_blank" rel="noopener noreferrer">' + esc(x.name) + '</a>').join('<br>');
     const img = l.find(x => x.name === 'بحث بالصورة'); return l.filter(x => x.name === 'AliExpress' || x.name === 'Alibaba').concat(img ? [img] : []).map(x => '<a class="muted" href="' + esc(x.url) + '" target="_blank" rel="noopener noreferrer" title="بحث عن مصدر لهذا المنتج في ' + esc(x.name) + '">' + esc(x.name) + '</a>').join('<br>');
   }
   function suggestionHtml(prod) {
@@ -331,6 +333,7 @@
       }
       out.textContent = 'جارٍ البحث…';
       const q = merchant.sourcingQuery(prod);
+      if (!q) { out.innerHTML = '<p class="warn-line">لا عبارة بحث موثوقة لهذا المنتج (العنوان عربي بلا موديل). اكتب عبارة بحث بالإنجليزية أعلاه واحفظ ثم أعد المحاولة.</p>'; return; }
       const list = await matchCandidates(prod, await sourcing.searchAliExpress(s, q), await ensureImagePermission());
       if (!list.length) { out.innerHTML = '<p class="muted">لا نتائج لـ«' + esc(q) + '».</p>'; return; }
       out.innerHTML = '<p class="muted">نتائج لـ«' + esc(q) + '». السعر لمنتج مقترح قد لا يطابق منتجك، ولا يشمل الشحن إلى المملكة. «يدعم الدروب شيبينج» غير متاح من هذه الواجهة، فتأكد منه مع المورد.</p>' +
@@ -343,7 +346,7 @@
     const v = (id) => ($(id) || {}).value;
     const raw = { status: v('mt-status'), note: v('mt-note') };
     MT_FIELDS.forEach(([k]) => { raw[k] = v('mt-' + k); });
-    raw.supplierName = v('mt-supplierName'); raw.supplierUrl = v('mt-supplierUrl');
+    raw.searchQuery = v('mt-searchQuery'); raw.supplierName = v('mt-supplierName'); raw.supplierUrl = v('mt-supplierUrl');
     return raw;
   }
   function userVerdictForm(o) {

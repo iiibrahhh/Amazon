@@ -117,3 +117,14 @@ test('بحث بالصورة: رابط Lens بصورة المنتج فقط إن �
   assert.equal(merchant.imageSearchLink({ imageUrl: 'javascript:1' }), null);
   assert.equal(merchant.sourcingLinks({ title: 'Mini Fan' }).some(x => x.name === 'بحث بالصورة'), false);
 });
+
+test('عبارة البحث: لا أرقام وحدها ولا عربية (سبب النتائج العشوائية)، وعبارة التاجر تتقدم', () => {
+  const t = 'ستيري [عبوتان] شاشة خصوصية الكمبيوتر 27 انش لشاشة عريضة 16:9 حماية العين - غشاء واقي 27 انش';
+  assert.equal(merchant.sourcingQuery({ title: t }), '');
+  assert.deepEqual(merchant.sourcingLinks({ title: t }), [], 'بلا صورة ولا عبارة: لا روابط نصية');
+  const withImg = merchant.sourcingLinks({ title: t, imageUrl: 'https://m.media-amazon.com/x.jpg' });
+  assert.deepEqual(withImg.map(x => x.name), ['بحث بالصورة']);
+  assert.equal(merchant.sourcingQuery({ title: t, merchant: { searchQuery: '27 inch privacy screen filter' } }), '27 inch privacy screen filter');
+  assert.equal(merchant.sourcingQuery({ title: 'شاشة UPERFECT USteam E6 Pro 18.5 بوصة 1080P' }), 'UPERFECT USteam E6 Pro 18.5 1080P');
+  assert.equal(merchant.cleanMerchantData({ searchQuery: ' privacy screen ' }).searchQuery, 'privacy screen');
+});

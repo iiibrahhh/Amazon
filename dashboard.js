@@ -1,6 +1,6 @@
 /* لوحة التحكم — تعمل كصفحة إضافة، وتشغّل الزاحف مباشرة (يجب إبقاء التبويب مفتوحًا أثناء الجمع). */
 (function () {
-  const { rules, parser, db: dbLib, ingest, exporter, crawler, search, opportunity, calibration, merchant, backup } = self.ASF;
+  const { sourcing, rules, parser, db: dbLib, ingest, exporter, crawler, search, opportunity, calibration, merchant, backup } = self.ASF;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtDate = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' }); };
@@ -233,7 +233,27 @@
       '<div class="grid2">' + MT_FIELDS.map(([k, t]) => '<label>' + esc(t) + '<input type="number" min="0" step="0.01" id="mt-' + k + '" value="' + esc(m[k] !== undefined ? m[k] : '') + '"></label>').join('') + '</div>' +
       '<div id="mt-profit">' + profitBoxHtml(price, m) + '</div>' +
       '<div class="scope-actions"><button id="mt-save" class="primary">حفظ</button><button id="mt-clear">مسح بياناتي لهذا المنتج</button></div>' +
+      '<div class="ali"><button id="mt-ali">اجلب مصادر مقترحة من AliExpress</button> <span class="muted">يحتاج مفتاحك في الإعدادات</span><div id="mt-ali-out"></div></div>' +
       (links.length ? '<p class="src-links"><b>ابحث عن المصدر:</b> ' + links.map(l => '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">' + esc(l.name) + '</a>').join('') + '<br><span class="muted">البحث بـ«' + esc(merchant.sourcingQuery(prod)) + '». روابط بحث فقط، ويتحقق التاجر بنفسه من تطابق المنتج.</span></p>' : '') + '</div>';
+  }
+  async function fetchAli() {
+    const out = $('mt-ali-out'), row = state.rows.find(x => rowKey(x) === state.active), prod = state.products.find(p => row && p.asin === row._asin) || {};
+    const s = state.settings;
+    if (!s.aliAppKey || !s.aliAppSecret) { out.innerHTML = '<p class="warn-line">أدخل App Key وApp Secret في «الإعدادات» أولًا.</p>'; return; }
+    try {
+      if (self.chrome && chrome.permissions) {
+        const has = await chrome.permissions.contains({ origins: [sourcing.ORIGIN_PATTERN] });
+        if (!has && !(await chrome.permissions.request({ origins: [sourcing.ORIGIN_PATTERN] }))) { out.innerHTML = '<p class="warn-line">لم تُمنح صلاحية الاتصال بـAliExpress.</p>'; return; }
+      }
+      out.textContent = 'جارٍ البحث…';
+      const q = merchant.sourcingQuery(prod);
+      const list = await sourcing.searchAliExpress(s, q);
+      if (!list.length) { out.innerHTML = '<p class="muted">لا نتائج لـ«' + esc(q) + '».</p>'; return; }
+      out.innerHTML = '<p class="muted">نتائج لـ«' + esc(q) + '». السعر لمنتج مقترح قد لا يطابق منتجك، ولا يشمل الشحن إلى المملكة. «يدعم الدروب شيبينج» غير متاح من هذه الواجهة، فتأكد منه مع المورد.</p>' +
+        list.map(c => '<div class="ali-item"><a href="' + esc(c.url) + '" target="_blank" rel="noopener noreferrer">' + esc(c.title.slice(0, 90)) + '</a><br>' +
+          (c.price !== null ? '<b>' + esc(fmtNum(c.price)) + ' ' + esc(c.currency || '') + '</b> ' : 'بلا سعر ') + (c.rating !== null ? '· تقييم ' + esc(String(c.rating)) + ' ' : '') + (c.orders !== null ? '· ' + esc(fmtNum(c.orders)) + ' طلب ' : '') +
+          (c.price !== null ? '<button data-use-cost="' + esc(String(c.price)) + '">استخدم السعر كتكلفة</button>' : '') + '</div>').join('');
+    } catch (e) { out.innerHTML = '<p class="warn-line">' + esc(e.message) + '</p>'; }
   }
   function readMerchantForm() {
     const v = (id) => ($(id) || {}).value;
@@ -587,6 +607,11 @@
       $('mt-profit').innerHTML = profitBoxHtml(row.price, merchant.cleanMerchantData(readMerchantForm()) || {});
     });
     $('detail').addEventListener('click', async (e) => {
+      if (e.target.id === 'mt-ali') { await fetchAli(); return; }
+      if (e.target.dataset && e.target.dataset.useCost !== undefined) {
+        const c = $('mt-cost'); c.value = e.target.dataset.useCost; c.dispatchEvent(new Event('input', { bubbles: true }));
+        setStatus('وُضع السعر في «تكلفة الشراء». أضف الشحن إلى المملكة ثم احفظ.'); return;
+      }
       if (e.target.id === 'mt-save' || e.target.id === 'mt-clear') {
         const asin = e.target.closest('.mt').dataset.asin;
         try {
@@ -615,7 +640,7 @@
       const s = state.settings;
       form.minDelay.value = s.minDelayMs / 1000; form.maxDelay.value = s.maxDelayMs / 1000; form.maxPages.value = s.maxPagesPerRun;
       form.depth.value = s.maxCategoryDepth; form.language.value = s.language || '';
-      form.rankMix.value = s.rankMixEvery; form.customsPct.value = s.customsPct; form.referralFeePct.value = s.referralFeePct; form.vatPct.value = s.vatPct; form.vatRecoverable.checked = !!s.vatRecoverable; form.rankMove.value = s.rankMoveThreshold; form.autoCapture.checked = !!s.autoCapture; form.sellerProfile.checked = s.fetchSellerProfile !== false; form.sellerAddrConfirmed.checked = !!s.sellerAddressAsConfirmed; form.competitors.checked = !!s.fetchCompetitorOffers; form.importAsConfirmed.checked = !!s.importFeesAsConfirmed;
+      form.aliAppKey.value = s.aliAppKey || ''; form.aliAppSecret.value = s.aliAppSecret || ''; form.aliTrackingId.value = s.aliTrackingId || ''; form.rankMix.value = s.rankMixEvery; form.customsPct.value = s.customsPct; form.referralFeePct.value = s.referralFeePct; form.vatPct.value = s.vatPct; form.vatRecoverable.checked = !!s.vatRecoverable; form.rankMove.value = s.rankMoveThreshold; form.autoCapture.checked = !!s.autoCapture; form.sellerProfile.checked = s.fetchSellerProfile !== false; form.sellerAddrConfirmed.checked = !!s.sellerAddressAsConfirmed; form.competitors.checked = !!s.fetchCompetitorOffers; form.importAsConfirmed.checked = !!s.importFeesAsConfirmed;
       form.intlTransit.value = s.intlMinTransitDays; form.searchMin.value = s.searchMinDelayMs / 1000; form.searchMax.value = s.searchMaxDelayMs / 1000; form.skipFresh.value = s.skipFreshHours; form.intlHandling.value = s.intlMinHandlingDays; form.intlDelivery.value = s.intlMinDeliveryDays;
       form.seeds.value = (s.extraSeeds || []).join('\n'); $('settings-dialog').showModal();
     };
@@ -625,7 +650,7 @@
       await saveSettings(Object.assign({}, state.settings, {
         minDelayMs: minD * 1000, maxDelayMs: maxD * 1000, maxPagesPerRun: Math.max(1, parseInt(form.maxPages.value, 10) || 300),
         maxCategoryDepth: Math.min(4, Math.max(0, parseInt(form.depth.value, 10) || 0)), language: form.language.value,
-        customsPct: Math.max(0, parseFloat(form.customsPct.value) || 0), referralFeePct: Math.max(0, parseFloat(form.referralFeePct.value) || 0), vatPct: Math.max(0, parseFloat(form.vatPct.value) || 0), vatRecoverable: form.vatRecoverable.checked, rankMixEvery: Math.max(0, Math.min(20, parseInt(form.rankMix.value, 10) || 0)), rankMoveThreshold: Math.max(0, Math.min(3, parseFloat(form.rankMove.value) || 0)), autoCapture: form.autoCapture.checked, fetchSellerProfile: form.sellerProfile.checked, sellerAddressAsConfirmed: form.sellerAddrConfirmed.checked, fetchCompetitorOffers: form.competitors.checked, importFeesAsConfirmed: form.importAsConfirmed.checked, extraSeeds: seeds,
+        aliAppKey: form.aliAppKey.value.trim(), aliAppSecret: form.aliAppSecret.value.trim(), aliTrackingId: form.aliTrackingId.value.trim(), customsPct: Math.max(0, parseFloat(form.customsPct.value) || 0), referralFeePct: Math.max(0, parseFloat(form.referralFeePct.value) || 0), vatPct: Math.max(0, parseFloat(form.vatPct.value) || 0), vatRecoverable: form.vatRecoverable.checked, rankMixEvery: Math.max(0, Math.min(20, parseInt(form.rankMix.value, 10) || 0)), rankMoveThreshold: Math.max(0, Math.min(3, parseFloat(form.rankMove.value) || 0)), autoCapture: form.autoCapture.checked, fetchSellerProfile: form.sellerProfile.checked, sellerAddressAsConfirmed: form.sellerAddrConfirmed.checked, fetchCompetitorOffers: form.competitors.checked, importFeesAsConfirmed: form.importAsConfirmed.checked, extraSeeds: seeds,
         intlMinTransitDays: Math.max(1, parseInt(form.intlTransit.value, 10) || 4),
         searchMinDelayMs: Math.max(500, (parseFloat(form.searchMin.value) || 1.5) * 1000), searchMaxDelayMs: Math.max(500, (parseFloat(form.searchMax.value) || 3) * 1000),
         skipFreshHours: Math.max(0, parseInt(form.skipFresh.value, 10) || 0),

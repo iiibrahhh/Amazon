@@ -186,6 +186,12 @@
       <label>عتبة فارق النقل لاعتبار الشحن دوليًا «مرجحًا» (أيام: أقرب توصيل − أطول تجهيز، مع شاحن = بائع)<input type="number" name="intlTransit" min="1" max="60"></label>
       <label>في الجمع: كل كم منتج يُخصَّص واحد لمنتجات الاكتشاف (بلا ترتيب أو إصدارات جديدة؛ 0 = ترتيب صرف)<input type="number" name="rankMix" min="0" max="20"></label>
       <label>عتبة «سريعة تغيّر الترتيب» (|ln(السابق/الحالي)|: 0.4 ≈ تغيّر بنحو 50%، 0 = تعطيل)<input type="number" name="rankMove" min="0" max="3" step="0.1"></label>
+      <fieldset><legend>AliExpress (اختياري: لجلب مصادر مقترحة)</legend>
+        <p class="muted">سجّل تطبيقًا في AliExpress Open Platform (واجهة الشركاء Affiliate) وانسخ المفتاح والسر. يبقيان على جهازك فقط ولا يُصدَّران في النسخة الاحتياطية.</p>
+        <label>App Key<input name="aliAppKey" autocomplete="off"></label>
+        <label>App Secret<input name="aliAppSecret" type="password" autocomplete="off"></label>
+        <label>Tracking ID (من حساب الشركاء)<input name="aliTrackingId" autocomplete="off"></label>
+      </fieldset>
       <fieldset><legend>حاسبة الربح (افتراضات قابلة للتعديل)</legend>
         <label>الجمارك الافتراضية %<input type="number" name="customsPct" min="0" max="100" step="0.5"></label>
         <label>عمولة Amazon الافتراضية %<input type="number" name="referralFeePct" min="0" max="50" step="0.5"></label>
@@ -211,6 +217,7 @@
   <script src="lib/ingest.js"></script>
   <script src="lib/opportunity.js"></script>
   <script src="lib/merchant.js"></script>
+  <script src="lib/sourcing.js"></script>
   <script src="lib/backup.js"></script>
   <script src="lib/calibration.js"></script>
   <script src="lib/export.js"></script>

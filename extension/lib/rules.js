@@ -217,6 +217,7 @@
     searchMaxDelayMs: 3000,
     skipFreshHours: 6,          // لا تُعاد صفحة منتج فُحصت خلال هذه المدة عند فحص نتائج البحث (0 = أعد دائمًا)
     intlMinDeliveryDays: 14,    // شاحن = البائع + أقرب موعد توصيل بعد ≥ هذا العدد من الأيام ⇒ قرينة (مرجح)
+    aliAppKey: '', aliAppSecret: '', aliTrackingId: '', aliShipTo: 'SA', aliCurrency: 'SAR',   // مفتاح AliExpress (يبقى على جهازك، ولا يدخل النسخ الاحتياطي)
     customsPct: 5,              // حاسبة الربح: جمارك افتراضية % (تختلف بحسب البند الجمركي للمنتج)
     referralFeePct: 15,         // عمولة Amazon الافتراضية % (تختلف بحسب الفئة)
     vatPct: 15,                 // ضريبة القيمة المضافة %

@@ -8,6 +8,7 @@
   "action": { "default_title": "فتح لوحة مستكشف الشحن الدولي" },
   "background": { "service_worker": "background.js" },
   "permissions": ["storage", "unlimitedStorage"],
+  "optional_host_permissions": ["https://api-sg.aliexpress.com/*"],
   "host_permissions": ["https://www.amazon.sa/*", "https://amazon.sa/*"],
   "content_scripts": [
     {

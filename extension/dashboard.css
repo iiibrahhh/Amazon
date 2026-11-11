@@ -102,6 +102,7 @@ button.on { background: var(--accent); color: var(--accent-ink); border-color: v
 dialog fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 10px 0; }
 .sel-banner { margin: 6px 0; padding: 7px 12px; border-radius: 6px; background: var(--c-likely-bg); } .sel-banner button { margin-inline-start: 8px; }
 .col-tip { position: fixed; z-index: 1000; max-width: 280px; padding: 8px 11px; border-radius: 6px; background: #1f2933; color: #fff; font-size: 12.5px; line-height: 1.7; box-shadow: 0 4px 14px rgba(0,0,0,.3); pointer-events: none; }
+.ali-item { padding: 6px 0; border-bottom: 1px solid var(--line); } .ali-item button { margin-inline-start: 8px; }
 .warn-line { color: var(--c-likely); }
 @media (prefers-reduced-motion: no-preference) { button { transition: border-color .12s; } }
 

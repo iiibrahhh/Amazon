@@ -7,10 +7,13 @@
   const FORMAT = 'amazon-sa-finder-backup';
   const STORES = ['products', 'offers', 'evidence', 'priceHistory', 'sources', 'queue', 'scans'];   // السجلات (logs) لا تُحفظ
 
+  const SECRET_KEYS = ['aliAppSecret', 'aliAppKey', 'aliTrackingId'];
+  function stripSecrets(s) { const o = Object.assign({}, s); SECRET_KEYS.forEach(k => delete o[k]); return o; }
+
   async function exportAll(db, settings, appVersion) {
     const stores = {};
     for (const s of STORES) stores[s] = await db.all(s);
-    return { format: FORMAT, version: 1, appVersion: appVersion || null, createdAt: new Date().toISOString(), settings: settings || {}, stores };
+    return { format: FORMAT, version: 1, appVersion: appVersion || null, createdAt: new Date().toISOString(), settings: stripSecrets(settings || {}), stores };
   }
 
   function validate(obj) {

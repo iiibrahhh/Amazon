@@ -132,6 +132,7 @@
         '<td>' + esc(r.shippingOrigin || '—') + '</td>' +
         '<td>' + badge(r.shippingStatus, unscanned, !!(r.statusSource && /^يدوي/.test(r.statusSource))) + '</td>' +
         '<td class="num opp">' + (r.opportunityScore !== null && r.opportunityScore !== undefined ? esc(r.opportunityScore) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="supplier">' + (r.supplierUrl ? '<a href="' + esc(r.supplierUrl) + '" target="_blank" rel="noopener noreferrer" title="' + esc(r.supplierName || '') + '">' + esc(merchant.supplierPlatform(r.supplierUrl) || '') + (r.supplierName && r.supplierName !== merchant.supplierPlatform(r.supplierUrl) ? ': ' + esc(r.supplierName.slice(0, 28)) : '') + '</a>' : (r.supplierName ? esc(r.supplierName) : '<span class="muted">—</span>')) + '</td>' +
         '<td>' + (r.merchantStatus ? '<span class="badge watch-' + esc(r.merchantStatus) + '">' + esc(r.merchantStatusAr) + '</span>' : '<span class="muted">—</span>') + '</td>' +
         '<td class="num opp">' + (r.profitPerUnit !== null && r.profitPerUnit !== undefined ? '<span class="' + (r.profitPerUnit >= 0 ? 'mv-up' : 'mv-down') + '">' + esc(fmtNum(r.profitPerUnit)) + '</span>' : '<span class="muted">—</span>') + '</td>' +
         '<td class="num">' + (r.shippingCost === 'مجاني' ? 'مجاني' : (r.shippingCost !== null && r.shippingCost !== undefined ? fmtNum(r.shippingCost) : '<span class="muted">—</span>')) + '</td>' +
@@ -230,6 +231,7 @@
     return '<h3>أدوات التاجر</h3><div class="mt" data-asin="' + esc(r._asin) + '">' +
       '<label>حالة المتابعة <select id="mt-status"><option value="">— بلا —</option>' + Object.entries(merchant.WATCH_STATUS).map(([k, v]) => opt(k, v)).join('') + '</select></label>' +
       '<label>ملاحظتي <textarea id="mt-note" rows="2" maxlength="500">' + esc(m.note || '') + '</textarea></label>' +
+      '<div class="grid2"><label>اسم المورد<input type="text" id="mt-supplierName" maxlength="120" value="' + esc(m.supplierName || '') + '"></label><label>رابط المورد (AliExpress/Alibaba…)<input type="url" id="mt-supplierUrl" dir="ltr" value="' + esc(m.supplierUrl || '') + '"></label></div>' +
       '<div class="grid2">' + MT_FIELDS.map(([k, t]) => '<label>' + esc(t) + '<input type="number" min="0" step="0.01" id="mt-' + k + '" value="' + esc(m[k] !== undefined ? m[k] : '') + '"></label>').join('') + '</div>' +
       '<div id="mt-profit">' + profitBoxHtml(price, m) + '</div>' +
       '<div class="scope-actions"><button id="mt-save" class="primary">حفظ</button><button id="mt-clear">مسح بياناتي لهذا المنتج</button></div>' +
@@ -252,13 +254,14 @@
       out.innerHTML = '<p class="muted">نتائج لـ«' + esc(q) + '». السعر لمنتج مقترح قد لا يطابق منتجك، ولا يشمل الشحن إلى المملكة. «يدعم الدروب شيبينج» غير متاح من هذه الواجهة، فتأكد منه مع المورد.</p>' +
         list.map(c => '<div class="ali-item"><a href="' + esc(c.url) + '" target="_blank" rel="noopener noreferrer">' + esc(c.title.slice(0, 90)) + '</a><br>' +
           (c.price !== null ? '<b>' + esc(fmtNum(c.price)) + ' ' + esc(c.currency || '') + '</b> ' : 'بلا سعر ') + (c.rating !== null ? '· تقييم ' + esc(String(c.rating)) + ' ' : '') + (c.orders !== null ? '· ' + esc(fmtNum(c.orders)) + ' طلب ' : '') +
-          (c.price !== null ? '<button data-use-cost="' + esc(String(c.price)) + '">استخدم السعر كتكلفة</button>' : '') + '</div>').join('');
+          '<button data-use-supplier="' + esc(c.url) + '" data-supplier-name="' + esc(c.title.slice(0, 60)) + '">اعتمد كمورد</button>' + (c.price !== null ? '<button data-use-cost="' + esc(String(c.price)) + '">استخدم السعر كتكلفة</button>' : '') + '</div>').join('');
     } catch (e) { out.innerHTML = '<p class="warn-line">' + esc(e.message) + '</p>'; }
   }
   function readMerchantForm() {
     const v = (id) => ($(id) || {}).value;
     const raw = { status: v('mt-status'), note: v('mt-note') };
     MT_FIELDS.forEach(([k]) => { raw[k] = v('mt-' + k); });
+    raw.supplierName = v('mt-supplierName'); raw.supplierUrl = v('mt-supplierUrl');
     return raw;
   }
   function userVerdictForm(o) {
@@ -608,6 +611,10 @@
     });
     $('detail').addEventListener('click', async (e) => {
       if (e.target.id === 'mt-ali') { await fetchAli(); return; }
+      if (e.target.dataset && e.target.dataset.useSupplier !== undefined) {
+        $('mt-supplierUrl').value = e.target.dataset.useSupplier; $('mt-supplierName').value = e.target.dataset.supplierName || '';
+        setStatus('وُضع المورد في النموذج. اضغط «حفظ» ليظهر في عمود المورد.'); return;
+      }
       if (e.target.dataset && e.target.dataset.useCost !== undefined) {
         const c = $('mt-cost'); c.value = e.target.dataset.useCost; c.dispatchEvent(new Event('input', { bubbles: true }));
         setStatus('وُضع السعر في «تكلفة الشراء». أضف الشحن إلى المملكة ثم احفظ.'); return;

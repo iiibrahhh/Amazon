@@ -95,3 +95,17 @@ test('تنظيف السجلات القديمة: يُزال الاسم وتبقى
   assert.equal((await db.get('offers', 'b')).deliveryLocation, 'الرياض 12211');
   assert.equal(await ingest.scrubDeliveryLocations(db), 0);
 });
+
+test('المورد: يُحفظ بمنصته، ويرفض الروابط غير http، ويظهر في التصدير', async () => {
+  assert.equal(merchant.supplierPlatform('https://www.aliexpress.com/item/1.html'), 'AliExpress');
+  assert.equal(merchant.supplierPlatform('https://www.alibaba.com/product-detail/x'), 'Alibaba');
+  assert.equal(merchant.supplierPlatform('https://detail.1688.com/offer/1.html'), '1688');
+  assert.equal(merchant.supplierPlatform('javascript:alert(1)'), null);
+  assert.equal(merchant.cleanMerchantData({ supplierUrl: 'javascript:alert(1)' }), null);
+  const db = await newDb();
+  const p = parser.parseProductDocument(fixtureDoc('product_intl_confirmed.html'), 'https://www.amazon.sa/dp/B0TEST0001');
+  await ingest.ingestProduct(db, p, { now: '2026-10-01T00:00:00.000Z' });
+  await ingest.setMerchantData(db, 'B0TEST0001', merchant.cleanMerchantData({ supplierUrl: 'https://www.aliexpress.com/item/1.html', supplierName: 'Foo Store' }));
+  const rows = exporter.buildRows(await db.all('products'), await db.all('offers'), [], { settings: {} });
+  assert.equal(rows[0].supplierName, 'Foo Store'); assert.match(rows[0].supplierUrl, /aliexpress/);
+});

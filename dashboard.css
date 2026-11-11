@@ -100,6 +100,7 @@ button.on { background: var(--accent); color: var(--accent-ink); border-color: v
 .profit-box table { width: 100%; font-size: 12.5px; } .profit-box td { padding: 2px 4px; border: 0; } .profit-box td:last-child { text-align: end; font-variant-numeric: tabular-nums; }
 .src-links a { margin-inline-end: 10px; }
 dialog fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 10px 0; }
+.sel-banner { margin: 6px 0; padding: 7px 12px; border-radius: 6px; background: var(--c-likely-bg); } .sel-banner button { margin-inline-start: 8px; }
 .warn-line { color: var(--c-likely); }
 @media (prefers-reduced-motion: no-preference) { button { transition: border-color .12s; } }
 

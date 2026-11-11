@@ -154,6 +154,20 @@
       if (th.dataset.sort === state.sort.key) th.setAttribute('aria-sort', state.sort.dir === 'asc' ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
     });
     $('chk-all').checked = slice.length > 0 && slice.every(r => state.selected.has(rowKey(r)));
+    renderSelBanner(slice);
+  }
+
+  /* تحديد كل النتائج (وليس صفحة واحدة فقط) — حسب التصفية الحالية */
+  function renderSelBanner(slice) {
+    const b = $('sel-banner'), total = state.view.length;
+    const allKeys = state.view.map(rowKey), selAll = total > 0 && allKeys.every(k => state.selected.has(k));
+    if (selAll && total > slice.length) {
+      b.hidden = false;
+      b.innerHTML = 'حُدد كل الـ' + fmtNum(total) + ' صفًا (في كل الصفحات، حسب التصفية الحالية). <button id="sel-clear">إلغاء التحديد</button>';
+    } else if (slice.length && slice.every(r => state.selected.has(rowKey(r))) && total > slice.length) {
+      b.hidden = false;
+      b.innerHTML = 'حُدد ' + fmtNum(slice.length) + ' صفًا في هذه الصفحة. <button id="sel-all">حدّد كل الـ' + fmtNum(total) + ' صفًا في كل الصفحات</button>';
+    } else b.hidden = true;
   }
 
   function moveMark(r) {
@@ -535,7 +549,7 @@
     $('btn-delete').onclick = async () => {
       const asins = Array.from(new Set(Array.from(state.selected).map(k => (state.rows.find(r => rowKey(r) === k) || {})._asin).filter(Boolean)));
       if (!asins.length) return setStatus('حدّد صفوفًا للحذف أولًا.', true);
-      if (!confirm('سيُحذف ' + asins.length + ' منتجًا مع كل عروضه وأدلته وسجل أسعاره من هذا الجهاز. المتابعة؟')) return;
+      if (!confirm((asins.length >= state.products.length && state.products.length ? 'تحذير: ستُحذف كل المنتجات (' : 'سيُحذف (') + asins.length + ' منتجًا) مع كل عروضه وأدلته وسجل أسعاره من هذا الجهاز. المتابعة؟')) return;
       await ingest.deleteProducts(state.db, asins); state.selected.clear(); state.active = null;
       $('detail').hidden = true; document.querySelector('.layout').classList.remove('with-detail');
       await reload(); setStatus('حُذف ' + asins.length + ' منتجًا.');
@@ -545,9 +559,14 @@
     $('filter-rank').onchange = () => { state.page = 1; applyView(); };
     $('filter-shipper-type').onchange = () => { state.page = 1; applyView(); };
     $('filter-shipper-name').oninput = () => { state.page = 1; applyView(); };
+    $('sel-banner').addEventListener('click', (e) => {
+      if (e.target.id === 'sel-all') { state.view.forEach(r => state.selected.add(rowKey(r))); renderTable(); }
+      else if (e.target.id === 'sel-clear') { state.selected.clear(); renderTable(); }
+    });
     $('chk-all').onchange = (e) => {
       const slice = state.view.slice((state.page - 1) * state.perPage, state.page * state.perPage);
-      slice.forEach(r => e.target.checked ? state.selected.add(rowKey(r)) : state.selected.delete(rowKey(r))); renderTable();
+      if (e.target.checked) slice.forEach(r => state.selected.add(rowKey(r))); else state.selected.clear();
+      renderTable();
     };
     document.querySelector('thead').addEventListener('click', (e) => {
       const th = e.target.closest('th.sortable'); if (!th) return;

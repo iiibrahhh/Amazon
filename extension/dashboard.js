@@ -635,6 +635,26 @@
     };
   }
 
+  /* شرح العمود: يظهر بعد 3 ثوانٍ من توقف الماوس على رأس العمود */
+  (function columnTips() {
+    const DELAY = 3000; let timer = null, tip = null, cur = null;
+    const hide = () => { clearTimeout(timer); timer = null; cur = null; if (tip) { tip.remove(); tip = null; } };
+    const head = document.querySelector('thead');
+    head.addEventListener('mouseover', (e) => {
+      const th = e.target.closest('th[data-tip]'); if (!th || th === cur) return;
+      hide(); cur = th;
+      timer = setTimeout(() => {
+        tip = document.createElement('div'); tip.className = 'col-tip'; tip.setAttribute('role', 'tooltip'); tip.textContent = th.dataset.tip;
+        document.body.appendChild(tip);
+        const r = th.getBoundingClientRect(), w = tip.offsetWidth;
+        tip.style.top = Math.min(r.bottom + 6, window.innerHeight - tip.offsetHeight - 6) + 'px';
+        tip.style.left = Math.max(6, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 6)) + 'px';
+      }, DELAY);
+    });
+    head.addEventListener('mouseout', (e) => { if (!e.relatedTarget || !e.relatedTarget.closest || e.relatedTarget.closest('th[data-tip]') !== cur) hide(); });
+    head.addEventListener('click', hide); window.addEventListener('scroll', hide, true); document.addEventListener('keydown', hide);
+  })();
+
   (async function init() {
     bind();
     try {

@@ -121,32 +121,32 @@
       <table id="tbl">
         <thead>
           <tr>
-            <th class="chk"><input type="checkbox" id="chk-all" aria-label="تحديد الكل"></th>
-            <th>الصورة</th>
-            <th data-sort="title" class="sortable">اسم المنتج</th>
-            <th data-sort="asin" class="sortable">ASIN</th>
-            <th data-sort="catalog" class="sortable">الكتالوج</th>
-            <th data-sort="listrank" class="sortable num" title="ترتيب المنتج في قائمة الأكثر مبيعًا لقسمه (1 = الأعلى)">ترتيب القسم</th>
-            <th data-sort="searchrank" class="sortable num" title="ترتيبه في نتائج آخر بحث (بلا إعلانات)">ترتيب البحث</th>
-            <th data-sort="bsr" class="sortable num" title="ترتيب أفضل المبيعات من صفحة المنتج">BSR</th>
-            <th data-sort="price" class="sortable num">السعر</th>
-            <th>اسم البائع<br><small>يباع بواسطة</small></th>
-            <th>اسم الشاحن<br><small>يشحن بواسطة</small></th>
-            <th>نوع الشاحن</th>
-            <th data-sort="handling" class="sortable num">مدة التجهيز<br><small>أيام</small></th>
-            <th data-sort="delivery" class="sortable num">التوصيل بعد<br><small>أيام</small></th>
-            <th>بلد الشحن</th>
-            <th data-sort="status" class="sortable">حالة الشحن الدولي</th>
-            <th data-sort="opp" class="sortable num" title="مؤشر إرشادي 0–100 (الشحن الدولي، الطلب، التقييم، المنافسة، السعر)">درجة الفرصة</th>
-            <th>المتابعة</th>
-            <th data-sort="profit" class="sortable num" title="ربح الوحدة التقديري بعد إدخال تكلفة الشراء">ربح الوحدة</th>
-            <th class="num">سعر الشحن</th>
-            <th class="num">رسوم الاستيراد</th>
-            <th>موعد التوصيل</th>
-            <th data-sort="rating" class="sortable num">التقييم</th>
-            <th>مصدر البيانات</th>
-            <th data-sort="checked" class="sortable">تاريخ الفحص</th>
-            <th>إجراءات</th>
+            <th class="chk" data-tip="حدّد كل صفوف الصفحة. بعدها يظهر زر لتحديد كل النتائج في كل الصفحات."><input type="checkbox" id="chk-all" aria-label="تحديد الكل"></th>
+            <th data-tip="صورة المنتج كما ظهرت في Amazon.sa.">الصورة</th>
+            <th data-sort="title" class="sortable" data-tip="عنوان المنتج. اضغط على الصف لفتح التفاصيل ودليل الشحن. اضغط الرأس للترتيب.">اسم المنتج</th>
+            <th data-sort="asin" class="sortable" data-tip="المعرّف الفريد للمنتج في أمازون (10 خانات). يمنع تكرار المنتج نفسه.">ASIN</th>
+            <th data-sort="catalog" class="sortable" data-tip="القسم أو الفئة التي ينتمي لها المنتج.">الكتالوج</th>
+            <th data-sort="listrank" class="sortable num" data-tip="ترتيب المنتج في قائمة الأكثر مبيعًا أو الجديد أو الأكثر ارتفاعًا لقسمه (1 = الأعلى). يمتلئ فقط للمنتجات المجموعة من هذه القوائم. ▲▼ تعني تغيّر ترتيبه.">ترتيب القسم</th>
+            <th data-sort="searchrank" class="sortable num" data-tip="ترتيب المنتج في نتائج آخر بحث أجريته (دون الإعلانات). يمتلئ فقط للمنتجات المجموعة بالبحث.">ترتيب البحث</th>
+            <th data-sort="bsr" class="sortable num" data-tip="ترتيب أفضل المبيعات كما هو مكتوب في صفحة المنتج (الأقل أفضل). يظهر فقط إذا ذكرته الصفحة.">BSR</th>
+            <th data-sort="price" class="sortable num" data-tip="سعر العرض الحالي بالريال شاملًا الضريبة.">السعر</th>
+            <th data-tip="البائع حسب «يباع بواسطة» في صفحة المنتج.">اسم البائع<br><small>يباع بواسطة</small></th>
+            <th data-tip="الجهة الشاحنة حسب «يشحن بواسطة». قد تختلف عن البائع (مثل شحن أمازون).">اسم الشاحن<br><small>يشحن بواسطة</small></th>
+            <th data-tip="أمازون، أو البائع نفسه، أو طرف ثالث، أو غير معلوم إذا لم يثبت من الصفحة. لا يُخمَّن.">نوع الشاحن</th>
+            <th data-sort="handling" class="sortable num" data-tip="عدد أيام تجهيز الطلب قبل الشحن إن ذكرها البائع. مدة طويلة قرينة على شحن من الخارج.">مدة التجهيز<br><small>أيام</small></th>
+            <th data-sort="delivery" class="sortable num" data-tip="عدد الأيام المتوقعة حتى وصول الطلب حسب موعد التوصيل في الصفحة.">التوصيل بعد<br><small>أيام</small></th>
+            <th data-tip="بلد الشحن إن ذُكر صراحة في الصفحة. لا يُستنتج.">بلد الشحن</th>
+            <th data-sort="status" class="sortable" data-tip="مؤكد = نص صريح في الصفحة. مرجح = قرائن (مدد، عنوان البائع…). محلي. غير معلوم. افتح التفاصيل لترى الدليل.">حالة الشحن الدولي</th>
+            <th data-sort="opp" class="sortable num" data-tip="مؤشر إرشادي 0–100: الشحن الدولي (30)، الطلب BSR (20)، التقييم والمراجعات (15)، المنافسة (20)، السعر (15). ليس توقعًا للمبيعات.">درجة الفرصة</th>
+            <th data-tip="حالتك الخاصة للمنتج: مرشح، قيد الدراسة، تم التوريد، مرفوض. تُحدَّد من «أدوات التاجر» في التفاصيل.">المتابعة</th>
+            <th data-sort="profit" class="sortable num" data-tip="ربح الوحدة التقديري بعد إدخال تكلفة الشراء في «أدوات التاجر». بنسب افتراضية قابلة للتعديل من الإعدادات.">ربح الوحدة</th>
+            <th class="num" data-tip="تكلفة التوصيل للمشتري كما ظهرت في الصفحة (مجاني أو مبلغ).">سعر الشحن</th>
+            <th class="num" data-tip="رسوم الاستيراد/الجمارك المعروضة في الصفحة إن وُجدت، وقد تدل على شحن دولي.">رسوم الاستيراد</th>
+            <th data-tip="نص موعد التوصيل كما ظهر، مع المدينة.">موعد التوصيل</th>
+            <th data-sort="rating" class="sortable num" data-tip="متوسط التقييم وعدد المراجعات.">التقييم</th>
+            <th data-tip="من أين جاء السجل: صفحة المنتج، تفاصيل بحث، صفحة تصفحتها، أو استيراد.">مصدر البيانات</th>
+            <th data-sort="checked" class="sortable" data-tip="آخر مرة فُحصت فيها صفحة المنتج.">تاريخ الفحص</th>
+            <th data-tip="فتح المنتج في Amazon.sa أو نسخ رابطه.">إجراءات</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>

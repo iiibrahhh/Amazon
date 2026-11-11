@@ -132,7 +132,7 @@
         '<td>' + esc(r.shippingOrigin || '—') + '</td>' +
         '<td>' + badge(r.shippingStatus, unscanned, !!(r.statusSource && /^يدوي/.test(r.statusSource))) + '</td>' +
         '<td class="num opp">' + (r.opportunityScore !== null && r.opportunityScore !== undefined ? esc(r.opportunityScore) : '<span class="muted">—</span>') + '</td>' +
-        '<td class="supplier">' + (r.supplierUrl ? (r.supplierState === 'مقترح' ? '<span class="muted">مقترح · </span>' : '') + '<a href="' + esc(r.supplierUrl) + '" target="_blank" rel="noopener noreferrer" title="' + esc(r.supplierName || '') + '">' + esc(merchant.supplierPlatform(r.supplierUrl) || '') + (r.supplierName && r.supplierName !== merchant.supplierPlatform(r.supplierUrl) ? ': ' + esc(r.supplierName.replace(/^[^:]+: /, '').slice(0, 28)) : '') + '</a>' + (r.supplierPrice !== null && r.supplierPrice !== undefined ? '<br><b>' + esc(fmtNum(r.supplierPrice)) + '</b>' : '') : (r.supplierName ? esc(r.supplierName) : '<span class="muted">—</span>')) + '</td>' +
+        '<td class="supplier">' + (r.supplierUrl ? (r.supplierState === 'مقترح' ? '<span class="muted">مقترح · </span>' : '') + '<a href="' + esc(r.supplierUrl) + '" target="_blank" rel="noopener noreferrer" title="' + esc(r.supplierName || '') + '">' + esc(merchant.supplierPlatform(r.supplierUrl) || '') + (r.supplierName && r.supplierName !== merchant.supplierPlatform(r.supplierUrl) ? ': ' + esc(r.supplierName.replace(/^[^:]+: /, '').slice(0, 28)) : '') + '</a>' + (r.supplierPrice !== null && r.supplierPrice !== undefined ? '<br><b>' + esc(fmtNum(r.supplierPrice)) + '</b>' : '') : (r.supplierName ? esc(r.supplierName) : supplierSearchLinks(r))) + '</td>' +
         '<td>' + (r.merchantStatus ? '<span class="badge watch-' + esc(r.merchantStatus) + '">' + esc(r.merchantStatusAr) + '</span>' : '<span class="muted">—</span>') + '</td>' +
         '<td class="num opp">' + (r.profitPerUnit !== null && r.profitPerUnit !== undefined ? '<span class="' + (r.profitPerUnit >= 0 ? 'mv-up' : 'mv-down') + '">' + esc(fmtNum(r.profitPerUnit)) + '</span>' : '<span class="muted">—</span>') + '</td>' +
         '<td class="num">' + (r.shippingCost === 'مجاني' ? 'مجاني' : (r.shippingCost !== null && r.shippingCost !== undefined ? fmtNum(r.shippingCost) : '<span class="muted">—</span>')) + '</td>' +
@@ -238,6 +238,12 @@
       suggestionHtml(prod) +
       '<div class="ali"><button id="mt-ali">اجلب مصادر مقترحة من AliExpress</button> <span class="muted">يحتاج مفتاحك في الإعدادات</span><div id="mt-ali-out"></div></div>' +
       (links.length ? '<p class="src-links"><b>ابحث عن المصدر:</b> ' + links.map(l => '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">' + esc(l.name) + '</a>').join('') + '<br><span class="muted">البحث بـ«' + esc(merchant.sourcingQuery(prod)) + '». روابط بحث فقط، ويتحقق التاجر بنفسه من تطابق المنتج.</span></p>' : '') + '</div>';
+  }
+  /* بلا مورد: روابط بحث جاهزة (AliExpress / Alibaba) بدل خلية فارغة */
+  function supplierSearchLinks(r) {
+    const prod = state.products.find(p => p.asin === r._asin); const l = prod ? merchant.sourcingLinks(prod) : [];
+    if (!l.length) return '<span class="muted">—</span>';
+    return l.slice(0, 2).map(x => '<a class="muted" href="' + esc(x.url) + '" target="_blank" rel="noopener noreferrer" title="بحث عن مصدر لهذا المنتج في ' + esc(x.name) + '">' + esc(x.name) + '</a>').join('<br>');
   }
   function suggestionHtml(prod) {
     const s = prod.supplierSuggestion; if (!s || !s.url) return '';

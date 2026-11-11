@@ -55,7 +55,7 @@
       id: String(p.product_id || ''), title: p.product_title || '', url: p.promotion_link || p.product_detail_url || '',
       image: p.product_main_image_url || '', currency: p.target_sale_price_currency || p.target_app_sale_price_currency || '',
       price: n(p.target_sale_price !== undefined ? p.target_sale_price : p.target_app_sale_price),
-      originalPrice: n(p.target_original_price), rating: n(p.evaluate_rate), orders: n(p.lastest_volume), shop: p.shop_url || '', shopName: p.shop_name || ''
+      originalPrice: n(p.target_original_price), category1: p.first_level_category_name || '', category2: p.second_level_category_name || '', rating: n(p.evaluate_rate), orders: n(p.lastest_volume), shop: p.shop_url || '', shopName: p.shop_name || ''
     })).filter(c => c.id || c.url);
   }
 

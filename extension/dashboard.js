@@ -1,6 +1,6 @@
 /* لوحة التحكم — تعمل كصفحة إضافة، وتشغّل الزاحف مباشرة (يجب إبقاء التبويب مفتوحًا أثناء الجمع). */
 (function () {
-  const { sourcing, rules, parser, db: dbLib, ingest, exporter, crawler, search, opportunity, calibration, merchant, backup } = self.ASF;
+  const { matching, sourcing, rules, parser, db: dbLib, ingest, exporter, crawler, search, opportunity, calibration, merchant, backup } = self.ASF;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtDate = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' }); };
@@ -247,8 +247,44 @@
   }
   function suggestionHtml(prod) {
     const s = prod.supplierSuggestion; if (!s || !s.url) return '';
-    return '<div class="ali-item"><b>مورد مقترح تلقائيًا</b> (تطابق تقديري ' + esc(String(s.match === undefined ? '؟' : s.match)) + '%): <a href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer">' + esc((s.title || '').slice(0, 80)) + '</a> · ' + esc(fmtNum(s.price)) + ' ' + esc(s.currency || '') +
+    return '<div class="ali-item"><b>مورد مقترح تلقائيًا</b> (تطابق تقديري ' + esc(String(s.match === undefined ? '؟' : s.match)) + '%' + (s.matchExplain ? ' — ' + esc(s.matchExplain) : '') + '): <a href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer">' + esc((s.title || '').slice(0, 80)) + '</a> · ' + esc(fmtNum(s.price)) + ' ' + esc(s.currency || '') +
       ' <button data-use-supplier="' + esc(s.url) + '" data-supplier-name="' + esc((s.title || '').slice(0, 60)) + '" data-use-cost="' + esc(String(s.price)) + '">اعتمد كمورد وتكلفة</button><br><span class="muted">قد لا يطابق منتجك؛ تأكد منه قبل الاعتماد. لا يشمل الشحن إلى المملكة.</span></div>';
+  }
+  /* ---- مطابقة المرشحين: الاسم + الوصف + النوع + البائع + الصورة (بصمة dHash) ---- */
+  const IMG_ORIGINS = ['https://m.media-amazon.com/*', 'https://*.alicdn.com/*', 'https://*.aliexpress-media.com/*'];
+  const hashCache = new Map();
+  async function imageHash(url) {
+    if (!url) return null; if (hashCache.has(url)) return hashCache.get(url);
+    let h = null;
+    try {
+      const blob = await (await fetch(url)).blob();
+      const bmp = await createImageBitmap(blob);
+      const cv = document.createElement('canvas'); cv.width = 9; cv.height = 8;
+      const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(bmp, 0, 0, 9, 8);
+      const px = cx.getImageData(0, 0, 9, 8).data, g = [];
+      for (let i = 0; i < 72; i++) g.push(0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2]);
+      h = matching.dHash(g);
+    } catch (e) { h = null; }
+    hashCache.set(url, h); return h;
+  }
+  async function ensureImagePermission() {
+    try { if (self.chrome && chrome.permissions) { if (await chrome.permissions.contains({ origins: IMG_ORIGINS })) return true; return await chrome.permissions.request({ origins: IMG_ORIGINS }); } } catch (e) { /* النص فقط */ }
+    return false;
+  }
+  async function matchCandidates(prod, cands, useImages) {
+    const row = state.offers.find(o => o.asin === prod.asin);
+    const sellerName = row && row.sellerName;
+    let ranked = matching.rank(prod, cands, { sellerName });
+    if (useImages && prod.imageUrl && ranked.length) {
+      const mine = await imageHash(prod.imageUrl);
+      if (mine) {
+        const top = ranked.slice(0, 4), sims = new Map();
+        for (const c of top) { const h = await imageHash(c.image); const sim = matching.hashSimilarity(mine, h); if (sim !== null) sims.set(c.url, sim); }
+        const re = matching.rank(prod, top, { sellerName, imageSimilarity: c => sims.has(c.url) ? sims.get(c.url) : null });
+        ranked = re.concat(ranked.slice(4));
+      }
+    }
+    return ranked;
   }
   async function autoSuppliers() {
     const btn = $('btn-suppliers');
@@ -265,6 +301,7 @@
         if (!has && !(await chrome.permissions.request({ origins: [sourcing.ORIGIN_PATTERN] }))) return setStatus('لم تُمنح صلاحية الاتصال بـAliExpress.', true);
       }
     } catch (e) { return setStatus(e.message, true); }
+    const useImg = await ensureImagePermission();
     state.supBusy = true; state.supStop = false; btn.textContent = 'إيقاف الجلب';
     let found = 0, none = 0, skipped = 0, err = null, i = 0;
     for (const asin of asins) {
@@ -274,8 +311,8 @@
       const q = merchant.sourcingQuery(prod);
       if (!/[A-Za-z]{2}/.test(q)) { skipped++; continue; }
       try {
-        const best = sourcing.pickBest(q, await sourcing.searchAliExpress(s, q));
-        if (best) { await ingest.setSupplierSuggestion(state.db, asin, { platform: 'AliExpress', title: best.title, url: best.url, price: best.price, currency: best.currency, rating: best.rating, orders: best.orders, match: best.match, query: q }); found++; } else none++;
+        const best = (await matchCandidates(prod, await sourcing.searchAliExpress(s, q), useImg))[0];
+        if (best) { await ingest.setSupplierSuggestion(state.db, asin, { platform: 'AliExpress', title: best.title, url: best.url, price: best.price, currency: best.currency, rating: best.rating, orders: best.orders, match: best.match, matchExplain: best.matchExplain, query: q }); found++; } else none++;
       } catch (e) { err = e.message; break; }
       await new Promise(r => setTimeout(r, 1100));
     }
@@ -294,11 +331,11 @@
       }
       out.textContent = 'جارٍ البحث…';
       const q = merchant.sourcingQuery(prod);
-      const list = await sourcing.searchAliExpress(s, q);
+      const list = await matchCandidates(prod, await sourcing.searchAliExpress(s, q), await ensureImagePermission());
       if (!list.length) { out.innerHTML = '<p class="muted">لا نتائج لـ«' + esc(q) + '».</p>'; return; }
       out.innerHTML = '<p class="muted">نتائج لـ«' + esc(q) + '». السعر لمنتج مقترح قد لا يطابق منتجك، ولا يشمل الشحن إلى المملكة. «يدعم الدروب شيبينج» غير متاح من هذه الواجهة، فتأكد منه مع المورد.</p>' +
         list.map(c => '<div class="ali-item"><a href="' + esc(c.url) + '" target="_blank" rel="noopener noreferrer">' + esc(c.title.slice(0, 90)) + '</a><br>' +
-          (c.price !== null ? '<b>' + esc(fmtNum(c.price)) + ' ' + esc(c.currency || '') + '</b> ' : 'بلا سعر ') + (c.rating !== null ? '· تقييم ' + esc(String(c.rating)) + ' ' : '') + (c.orders !== null ? '· ' + esc(fmtNum(c.orders)) + ' طلب ' : '') +
+          '<span class="muted">تطابق ' + esc(String(c.match)) + '% (' + esc(c.matchExplain) + ')</span><br>' + (c.price !== null ? '<b>' + esc(fmtNum(c.price)) + ' ' + esc(c.currency || '') + '</b> ' : 'بلا سعر ') + (c.rating !== null ? '· تقييم ' + esc(String(c.rating)) + ' ' : '') + (c.orders !== null ? '· ' + esc(fmtNum(c.orders)) + ' طلب ' : '') +
           '<button data-use-supplier="' + esc(c.url) + '" data-supplier-name="' + esc(c.title.slice(0, 60)) + '">اعتمد كمورد</button>' + (c.price !== null ? '<button data-use-cost="' + esc(String(c.price)) + '">استخدم السعر كتكلفة</button>' : '') + '</div>').join('');
     } catch (e) { out.innerHTML = '<p class="warn-line">' + esc(e.message) + '</p>'; }
   }

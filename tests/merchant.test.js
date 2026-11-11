@@ -84,3 +84,14 @@ test('نسخ احتياطي: ذهاب وإياب كامل، ورفض الملف�
   await assert.rejects(() => backup.importAll(b, Object.assign({}, dump, { stores: { products: [{}] } })), /بلا ASIN/);
   assert.equal(await b.count('products'), 1, 'الرفض لا يمسح البيانات');
 });
+
+test('تنظيف السجلات القديمة: يُزال الاسم وتبقى المدينة، ولا يُمس غيرها', async () => {
+  const db = await newDb();
+  await db.put('offers', { offerKey: 'a', asin: 'A', deliveryLocation: 'Mustafa - الرياض' });
+  await db.put('offers', { offerKey: 'b', asin: 'B', deliveryLocation: 'الرياض 12211' });
+  await db.put('offers', { offerKey: 'c', asin: 'C' });
+  assert.equal(await ingest.scrubDeliveryLocations(db), 1);
+  assert.equal((await db.get('offers', 'a')).deliveryLocation, 'الرياض');
+  assert.equal((await db.get('offers', 'b')).deliveryLocation, 'الرياض 12211');
+  assert.equal(await ingest.scrubDeliveryLocations(db), 0);
+});

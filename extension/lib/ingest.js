@@ -212,6 +212,15 @@
   }
 
   /** بيانات التاجر للمنتج (حالة المتابعة، ملاحظة، تكاليف). تُمرَّر منقّاة؛ null تحذفها. */
+  /** خصوصية: يحذف اسم المستخدم من «اسم - المدينة» في العروض القديمة ويُبقي المدينة. يعيد عدد ما عُدّل. */
+  async function scrubDeliveryLocations(db) {
+    let n = 0;
+    for (const o of await db.all('offers')) {
+      const m = typeof o.deliveryLocation === 'string' && o.deliveryLocation.match(/^([^\d\-–—]{1,40}?)\s+[-–—]\s+(\S.*)$/);
+      if (m && m[1].trim().split(/\s+/).length <= 3) { o.deliveryLocation = m[2].trim(); await db.put('offers', o); n++; }
+    }
+    return n;
+  }
   async function setMerchantData(db, asin, clean) {
     const p = await db.get('products', asin);
     if (!p) throw new Error('المنتج غير موجود: ' + asin);
@@ -281,6 +290,6 @@
     return o;
   }
 
-  return { setMerchantData, effectiveStatus, setUserVerdict, clearUserVerdict, ingestProduct, ingestCompetitorOffers, ingestListingItems, deleteProducts, startScan, finishScan,
+  return { scrubDeliveryLocations, setMerchantData, effectiveStatus, setUserVerdict, clearUserVerdict, ingestProduct, ingestCompetitorOffers, ingestListingItems, deleteProducts, startScan, finishScan,
     log, mergeDefined, offerKeyOf, bestStatus };
 });

@@ -622,6 +622,7 @@
       state.db = await dbLib.open('amazon_sa_finder');
       await loadSettings();
       await crawler.resetInFlight(state.db);
+      try { await ingest.scrubDeliveryLocations(state.db); } catch (e) { /* تنظيف اختياري */ }
       renderScope();
       await reload(); await renderLog();
       const q = await crawler.queueStats(state.db);

@@ -326,7 +326,7 @@
     try { if (!(await ensureSourceAccess())) return setStatus('لم تُمنح صلاحية الوصول إلى AliExpress.', true); } catch (e) { return setStatus(e.message, true); }
     const useImg = await ensureImagePermission();
     state.supBusy = true; state.supStop = false; btn.textContent = 'إيقاف الجلب';
-    let found = 0, none = 0, skipped = 0, err = null, i = 0;
+    let found = 0, weak = 0, none = 0, skipped = 0, err = null, i = 0;
     for (const asin of asins) {
       if (state.supStop) break;
       i++; setStatus('جلب الموردين… ' + i + ' من ' + asins.length + ' (وُجد ' + found + ')');
@@ -335,13 +335,13 @@
       if (!/[A-Za-z]{2}/.test(q)) { skipped++; continue; }
       try {
         const best = (await matchCandidates(prod, await findCandidates(q), useImg))[0];
-        if (best) { await ingest.setSupplierSuggestion(state.db, asin, { platform: 'AliExpress', title: best.title, url: best.url, price: best.price, currency: best.currency, rating: best.rating, orders: best.orders, match: best.match, matchExplain: best.matchExplain, query: q }); found++; } else none++;
+        if (best && best.match < matching.MIN_ACCEPT) { weak++; } else if (best) { await ingest.setSupplierSuggestion(state.db, asin, { platform: 'AliExpress', title: best.title, url: best.url, price: best.price, currency: best.currency, rating: best.rating, orders: best.orders, match: best.match, matchExplain: best.matchExplain, query: q }); found++; } else none++;
       } catch (e) { err = e.message; break; }
       await new Promise(r => setTimeout(r, hasKey() ? 1100 : 5000));
     }
     state.supBusy = false; btn.textContent = 'جلب الموردين تلقائيًا';
     await reload();
-    setStatus('انتهى جلب الموردين: وُجد ' + found + '، بلا نتيجة ' + none + '، تُخطي ' + skipped + ' (عنوان عربي بلا موديل/كلمات لاتينية للبحث)' + (err ? '. توقف بسبب: ' + err : '') + '. المقترح يحتاج مراجعتك قبل الاعتماد.', !!err);
+    setStatus('انتهى جلب الموردين: وُجد ' + found + '، بلا نتيجة ' + none + '، نتائج ضعيفة التطابق رُفضت (دون ' + matching.MIN_ACCEPT + '%) ' + weak + '، تُخطي ' + skipped + ' (عنوان عربي بلا موديل/كلمات لاتينية للبحث)' + (err ? '. توقف بسبب: ' + err : '') + '. المقترح يحتاج مراجعتك قبل الاعتماد.', !!err);
   }
   async function fetchAli() {
     const out = $('mt-ali-out'), row = state.rows.find(x => rowKey(x) === state.active), prod = state.products.find(p => row && p.asin === row._asin) || {};
@@ -352,7 +352,8 @@
       if (!q) { out.innerHTML = '<p class="warn-line">لا عبارة بحث موثوقة لهذا المنتج (العنوان عربي بلا موديل). اكتب عبارة بحث بالإنجليزية أعلاه واحفظ ثم أعد المحاولة.</p>'; return; }
       const list = await matchCandidates(prod, await findCandidates(q), await ensureImagePermission());
       if (!list.length) { out.innerHTML = '<p class="muted">لا نتائج لـ«' + esc(q) + '».</p>'; return; }
-      out.innerHTML = '<p class="muted">نتائج لـ«' + esc(q) + '». السعر لمنتج مقترح قد لا يطابق منتجك، ولا يشمل الشحن إلى المملكة. «يدعم الدروب شيبينج» غير متاح من هذه الواجهة، فتأكد منه مع المورد.</p>' +
+      const weakAll = list[0].match < matching.MIN_ACCEPT;
+      out.innerHTML = (weakAll ? '<p class="warn-line">لا مرشح بتطابق كافٍ (الأعلى ' + esc(String(list[0].match)) + '% دون ' + matching.MIN_ACCEPT + '%): على الأرجح المنتج غير موجود بهذا الاسم، والنتائج أدناه منتجات أخرى تذكر الماركة. جرّب عبارة بحث إنجليزية أدق.</p>' : '') + '<p class="muted">نتائج لـ«' + esc(q) + '». السعر لمنتج مقترح قد لا يطابق منتجك، ولا يشمل الشحن إلى المملكة. «يدعم الدروب شيبينج» غير متاح من هذه الواجهة، فتأكد منه مع المورد.</p>' +
         list.map(c => '<div class="ali-item"><a href="' + esc(c.url) + '" target="_blank" rel="noopener noreferrer">' + esc(c.title.slice(0, 90)) + '</a><br>' +
           '<span class="muted">تطابق ' + esc(String(c.match)) + '% (' + esc(c.matchExplain) + ')</span><br>' + (c.price !== null ? '<b>' + esc(fmtNum(c.price)) + ' ' + esc(c.currency || '') + '</b> ' : 'بلا سعر ') + (c.rating !== null ? '· تقييم ' + esc(String(c.rating)) + ' ' : '') + (c.orders !== null ? '· ' + esc(fmtNum(c.orders)) + ' طلب ' : '') +
           '<button data-use-supplier="' + esc(c.url) + '" data-supplier-name="' + esc(c.title.slice(0, 60)) + '">اعتمد كمورد</button>' + (c.price !== null ? '<button data-use-cost="' + esc(String(c.price)) + '">استخدم السعر كتكلفة</button>' : '') + '</div>').join('');

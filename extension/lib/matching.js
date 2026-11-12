@@ -6,6 +6,8 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else { root.ASF = root.ASF || {}; root.ASF.matching = api; }
 })(typeof self !== 'undefined' ? self : this, function () {
+  const MIN_ACCEPT = 50;   // أقل درجة تُقترح تلقائيًا كمورد؛ دونها يُعرض المرشح للمراجعة فقط
+  const alnum = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
   const WEIGHTS = { name: 35, image: 30, description: 15, type: 10, seller: 10 };
   const LABELS = { name: 'الاسم', image: 'الصورة', description: 'الوصف', type: 'النوع', seller: 'البائع' };
   const STOP = new Set(['the', 'and', 'for', 'with', 'of', 'in', 'to', 'a', 'an', 'new', 'by', 'from', 'pcs', 'pc', 'set', 'item']);
@@ -56,8 +58,12 @@
       const parts = { name: name(prod, c), description: description(prod, c), type: type(prod, c), seller: seller(opts.sellerName, c),
         image: imageScore(opts.imageSimilarity ? opts.imageSimilarity(c) : null) };
       const m = combine(parts);
-      return Object.assign({}, c, { match: m.score === null ? 0 : m.score, matchParts: parts, matchMissing: m.missing, matchExplain: explain(m) });
+      // بوابة الموديل: إن كان لمنتج Amazon رقم موديل ولم يرد في عنوان المرشح، فالمرشح غالبًا منتج آخر بنفس الماركة
+      const model = alnum(prod.modelNumber), noModel = model.length >= 4 && !alnum(c.title).includes(model);
+      const score = m.score === null ? 0 : (noModel ? Math.min(m.score, 40) : m.score);
+      if (noModel) m.missing = m.missing.concat(['رقم الموديل غير مذكور في عنوان المرشح']);
+      return Object.assign({}, c, { match: score, modelInTitle: !noModel, matchParts: parts, matchMissing: m.missing, matchExplain: explain(m) });
     }).sort((x, y) => (y.match - x.match) || ((y.orders || 0) - (x.orders || 0)));
   }
-  return { WEIGHTS, dHash, hashSimilarity, imageScore, combine, explain, rank, name, description, type, seller };
+  return { MIN_ACCEPT, WEIGHTS, dHash, hashSimilarity, imageScore, combine, explain, rank, name, description, type, seller };
 });

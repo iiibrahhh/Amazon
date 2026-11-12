@@ -38,3 +38,17 @@ test('الصورة ترفع المرشح الأقرب بصريًا عند تسا
   assert.equal(r[0].url, 'b');
   assert.match(r[0].matchExplain, /الصورة 90/);
 });
+
+test('بوابة الموديل: نتائج بنفس الماركة بلا الموديل لا تُقترح (حالة Columbia 1420421010)', () => {
+  const jacket = { brand: 'Columbia', modelNumber: '1420421010', title: 'جاكيت فاست تريك II من الصوف بسحاب كامل للرجال من كولومبيا', categoryPath: 'أزياء › جاكيتات الصوف' };
+  const cands = [
+    { title: 'قبعة بيسبول كلاسيكية من فئة Vintage District Of Columbia Sandwich', price: 30, url: 'a', orders: 9 },
+    { title: 'لمقبض الباب الخارجي لـ 2000-2011 Freightliner Columbia Condor A1842228003', price: 227, url: 'b', orders: 43 },
+    { title: 'تي شيرت رجالي صيفي بلون واحد مع طباعة كولومبيا', price: 71, url: 'c', orders: 11 }
+  ];
+  const r = m.rank(jacket, cands, {});
+  assert.ok(r.every(x => x.match < m.MIN_ACCEPT), r.map(x => x.match).join(','));
+  assert.ok(r.every(x => x.modelInTitle === false));
+  const ok = m.rank(jacket, [{ title: 'Columbia Fast Trek II Fleece Jacket 1420421010 men', price: 150, url: 'z' }], {})[0];
+  assert.equal(ok.modelInTitle, true); assert.ok(ok.match >= m.MIN_ACCEPT, String(ok.match));
+});

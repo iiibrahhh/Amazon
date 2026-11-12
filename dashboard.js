@@ -1,6 +1,6 @@
 /* لوحة التحكم — تعمل كصفحة إضافة، وتشغّل الزاحف مباشرة (يجب إبقاء التبويب مفتوحًا أثناء الجمع). */
 (function () {
-  const { matching, sourcing, rules, parser, db: dbLib, ingest, exporter, crawler, search, opportunity, calibration, merchant, backup } = self.ASF;
+  const { aliparse, matching, sourcing, rules, parser, db: dbLib, ingest, exporter, crawler, search, opportunity, calibration, merchant, backup } = self.ASF;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtDate = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' }); };
@@ -237,7 +237,7 @@
       '<div id="mt-profit">' + profitBoxHtml(price, m) + '</div>' +
       '<div class="scope-actions"><button id="mt-save" class="primary">حفظ</button><button id="mt-clear">مسح بياناتي لهذا المنتج</button></div>' +
       suggestionHtml(prod) +
-      '<div class="ali"><button id="mt-ali">اجلب مصادر مقترحة من AliExpress</button> <span class="muted">يحتاج مفتاحك في الإعدادات</span><div id="mt-ali-out"></div></div>' +
+      '<div class="ali"><button id="mt-ali">اجلب مصادر مقترحة من AliExpress</button> <span class="muted">يفتح صفحة بحث AliExpress في تبويب خلفي (أو يستخدم مفتاحك إن أدخلته)</span><div id="mt-ali-out"></div></div>' +
       (links.length ? '<p class="src-links"><b>ابحث عن المصدر:</b> ' + links.map(l => '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">' + esc(l.name) + '</a>').join('') + '<br><span class="muted">البحث بـ«' + esc(merchant.sourcingQuery(prod)) + '». روابط بحث فقط، ويتحقق التاجر بنفسه من تطابق المنتج.</span></p>' : '') + '</div>';
   }
   /* بلا مورد: روابط بحث جاهزة (AliExpress / Alibaba) بدل خلية فارغة */
@@ -288,21 +288,42 @@
     }
     return ranked;
   }
+  /* ---- مصدر المرشحين: API إن وُجد المفتاح، وإلا قراءة صفحة بحث AliExpress تفتحها الإضافة في تبويب خلفي بمتصفحك ---- */
+  const hasKey = () => !!(state.settings.aliAppKey && state.settings.aliAppSecret);
+  const PAGE_ORIGINS = ['https://*.aliexpress.com/*'];
+  async function ensureSourceAccess() {
+    if (!(self.chrome && chrome.permissions)) return true;
+    const origins = hasKey() ? [sourcing.ORIGIN_PATTERN] : PAGE_ORIGINS;
+    if (await chrome.permissions.contains({ origins })) return true;
+    return await chrome.permissions.request({ origins });
+  }
+  async function readAliPage(query) {
+    const tab = await chrome.tabs.create({ url: 'https://www.aliexpress.com/wholesale?SearchText=' + encodeURIComponent(query), active: false });
+    try {
+      for (let i = 0; i < 40; i++) { const t = await chrome.tabs.get(tab.id); if (t.status === 'complete') break; await new Promise(r => setTimeout(r, 700)); }
+      await new Promise(r => setTimeout(r, 2500));
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/aliparse.js'] });
+      const [res] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async () => {
+        for (let i = 0; i < 4; i++) { window.scrollBy(0, 1400); await new Promise(r => setTimeout(r, 700)); }
+        return { blocked: ASF.aliparse.isBlocked(document), cards: ASF.aliparse.parseSearchDocument(document, location.href) };
+      } });
+      const r = res && res.result; if (!r) throw new Error('لم تُقرأ صفحة AliExpress.');
+      if (r.blocked) throw new Error('AliExpress طلب تحقّقًا (CAPTCHA). افتحه في تبويب وأكمل التحقق ثم أعد المحاولة.');
+      if (!r.cards.length) throw new Error('لم أجد بطاقات منتجات في الصفحة (ربما تغيّرت البنية أو لم تُحمَّل). أرسل لي HTML الصفحة لأضبط القارئ.');
+      return r.cards.filter(c => !c.sponsored).concat(r.cards.filter(c => c.sponsored));
+    } finally { try { await chrome.tabs.remove(tab.id); } catch (e) { /* أُغلق */ } }
+  }
+  const findCandidates = (q) => hasKey() ? sourcing.searchAliExpress(state.settings, q) : readAliPage(q);
+
   async function autoSuppliers() {
     const btn = $('btn-suppliers');
     if (state.supBusy) { state.supStop = true; btn.textContent = 'جارٍ الإيقاف…'; return; }
     const s = state.settings;
-    if (!s.aliAppKey || !s.aliAppSecret) return setStatus('أدخل App Key وApp Secret لـAliExpress في «الإعدادات» أولًا.', true);
     const byAsin = new Map(); (state.selected.size ? state.rows.filter(r => state.selected.has(rowKey(r))) : state.view.filter(r => !r.supplierUrl)).forEach(r => byAsin.set(r._asin, r));
-    const asins = Array.from(byAsin.keys()).slice(0, 50);
+    const asins = Array.from(byAsin.keys()).slice(0, hasKey() ? 50 : 15);
     if (!asins.length) return setStatus('لا منتجات بلا مورد في العرض الحالي. حدّد منتجات أو غيّر التصفية.', true);
-    if (!confirm('سيُبحث في AliExpress عن مورد مقترح لـ' + asins.length + ' منتجًا (بحد أقصى 50 في المرة)، بطلب كل ثانية تقريبًا. المتابعة؟')) return;
-    try {
-      if (self.chrome && chrome.permissions) {
-        const has = await chrome.permissions.contains({ origins: [sourcing.ORIGIN_PATTERN] });
-        if (!has && !(await chrome.permissions.request({ origins: [sourcing.ORIGIN_PATTERN] }))) return setStatus('لم تُمنح صلاحية الاتصال بـAliExpress.', true);
-      }
-    } catch (e) { return setStatus(e.message, true); }
+    if (!confirm('سيُبحث في AliExpress عن صفحة المنتج الأقرب لـ' + asins.length + ' منتجًا' + (hasKey() ? ' عبر واجهتك الرسمية' : ' بفتح صفحة بحث في تبويب خلفي لكل منتج (بحد أقصى 15 في المرة وبفاصل عدة ثوانٍ، وقد يطلب AliExpress تحققًا)') + '. المتابعة؟')) return;
+    try { if (!(await ensureSourceAccess())) return setStatus('لم تُمنح صلاحية الوصول إلى AliExpress.', true); } catch (e) { return setStatus(e.message, true); }
     const useImg = await ensureImagePermission();
     state.supBusy = true; state.supStop = false; btn.textContent = 'إيقاف الجلب';
     let found = 0, none = 0, skipped = 0, err = null, i = 0;
@@ -313,10 +334,10 @@
       const q = merchant.sourcingQuery(prod);
       if (!/[A-Za-z]{2}/.test(q)) { skipped++; continue; }
       try {
-        const best = (await matchCandidates(prod, await sourcing.searchAliExpress(s, q), useImg))[0];
+        const best = (await matchCandidates(prod, await findCandidates(q), useImg))[0];
         if (best) { await ingest.setSupplierSuggestion(state.db, asin, { platform: 'AliExpress', title: best.title, url: best.url, price: best.price, currency: best.currency, rating: best.rating, orders: best.orders, match: best.match, matchExplain: best.matchExplain, query: q }); found++; } else none++;
       } catch (e) { err = e.message; break; }
-      await new Promise(r => setTimeout(r, 1100));
+      await new Promise(r => setTimeout(r, hasKey() ? 1100 : 5000));
     }
     state.supBusy = false; btn.textContent = 'جلب الموردين تلقائيًا';
     await reload();
@@ -324,17 +345,12 @@
   }
   async function fetchAli() {
     const out = $('mt-ali-out'), row = state.rows.find(x => rowKey(x) === state.active), prod = state.products.find(p => row && p.asin === row._asin) || {};
-    const s = state.settings;
-    if (!s.aliAppKey || !s.aliAppSecret) { out.innerHTML = '<p class="warn-line">أدخل App Key وApp Secret في «الإعدادات» أولًا.</p>'; return; }
     try {
-      if (self.chrome && chrome.permissions) {
-        const has = await chrome.permissions.contains({ origins: [sourcing.ORIGIN_PATTERN] });
-        if (!has && !(await chrome.permissions.request({ origins: [sourcing.ORIGIN_PATTERN] }))) { out.innerHTML = '<p class="warn-line">لم تُمنح صلاحية الاتصال بـAliExpress.</p>'; return; }
-      }
+      if (!(await ensureSourceAccess())) { out.innerHTML = '<p class="warn-line">لم تُمنح صلاحية الوصول إلى AliExpress.</p>'; return; }
       out.textContent = 'جارٍ البحث…';
       const q = merchant.sourcingQuery(prod);
       if (!q) { out.innerHTML = '<p class="warn-line">لا عبارة بحث موثوقة لهذا المنتج (العنوان عربي بلا موديل). اكتب عبارة بحث بالإنجليزية أعلاه واحفظ ثم أعد المحاولة.</p>'; return; }
-      const list = await matchCandidates(prod, await sourcing.searchAliExpress(s, q), await ensureImagePermission());
+      const list = await matchCandidates(prod, await findCandidates(q), await ensureImagePermission());
       if (!list.length) { out.innerHTML = '<p class="muted">لا نتائج لـ«' + esc(q) + '».</p>'; return; }
       out.innerHTML = '<p class="muted">نتائج لـ«' + esc(q) + '». السعر لمنتج مقترح قد لا يطابق منتجك، ولا يشمل الشحن إلى المملكة. «يدعم الدروب شيبينج» غير متاح من هذه الواجهة، فتأكد منه مع المورد.</p>' +
         list.map(c => '<div class="ali-item"><a href="' + esc(c.url) + '" target="_blank" rel="noopener noreferrer">' + esc(c.title.slice(0, 90)) + '</a><br>' +
